@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
 import ParticlesBg from '../components/ParticlesBg'
@@ -6,6 +6,25 @@ import Icon from '../components/Icon'
 import { getTrips } from '../js/api'
 import { format, parseISO, differenceInDays } from 'date-fns'
 import { it } from 'date-fns/locale'
+
+function useCountUp(target, duration = 650) {
+  const [value, setValue] = useState(0)
+  const raf = useRef(null)
+  useEffect(() => {
+    if (raf.current) cancelAnimationFrame(raf.current)
+    if (!target) { setValue(0); return }
+    let start = null
+    const step = ts => {
+      if (!start) start = ts
+      const p = Math.min((ts - start) / duration, 1)
+      setValue(Math.round(p * target))
+      if (p < 1) raf.current = requestAnimationFrame(step)
+    }
+    raf.current = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf.current)
+  }, [target, duration])
+  return value
+}
 
 const STATUS_LABELS = {
   pianificazione: 'Pianificazione',
@@ -95,6 +114,9 @@ export default function DashboardPage() {
     upcoming: trips.filter(t => parseISO(t.start_date) >= new Date()).length,
     completed: trips.filter(t => t.status === 'concluso').length,
   }
+  const animTotal     = useCountUp(stats.total)
+  const animUpcoming  = useCountUp(stats.upcoming)
+  const animCompleted = useCountUp(stats.completed)
 
   return (
     <Layout>
@@ -127,21 +149,21 @@ export default function DashboardPage() {
         <div className="stat-chip">
           <Icon name="globe" size={20} color="var(--primary)" />
           <div>
-            <div className="stat-chip-value">{stats.total}</div>
+            <div className="stat-chip-value">{animTotal}</div>
             <div className="stat-chip-label">Viaggi totali</div>
           </div>
         </div>
         <div className="stat-chip">
           <Icon name="calendar" size={20} color="var(--accent)" />
           <div>
-            <div className="stat-chip-value" style={{ color: 'var(--accent)' }}>{stats.upcoming}</div>
+            <div className="stat-chip-value" style={{ color: 'var(--accent)' }}>{animUpcoming}</div>
             <div className="stat-chip-label">In arrivo</div>
           </div>
         </div>
         <div className="stat-chip">
           <Icon name="check" size={20} color="var(--secondary)" />
           <div>
-            <div className="stat-chip-value" style={{ color: 'var(--secondary)' }}>{stats.completed}</div>
+            <div className="stat-chip-value" style={{ color: 'var(--secondary)' }}>{animCompleted}</div>
             <div className="stat-chip-label">Completati</div>
           </div>
         </div>

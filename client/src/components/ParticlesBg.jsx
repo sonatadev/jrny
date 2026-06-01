@@ -24,7 +24,7 @@ export default function ParticlesBg({ count = 28, color = 'var(--primary)' }) {
           : type === 'ring'
           ? 0.05 + (i % 4) * 0.015
           : 0.08 + (i % 5) * 0.02,
-        drift: i % 3 === 0 ? 'drift-a' : i % 3 === 1 ? 'drift-b' : 'drift-c',
+        drift: i % 4 === 0 ? 'twinkle' : i % 3 === 0 ? 'drift-a' : i % 3 === 1 ? 'drift-b' : 'drift-c',
       }
     })
   }, [count])

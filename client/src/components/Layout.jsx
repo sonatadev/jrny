@@ -15,12 +15,13 @@ export default function Layout({ children, title, backTo }) {
   return (
     <div className="layout">
       <div className="global-bg" aria-hidden="true">
+        <div className="global-bg-aurora" />
         <div className="global-bg-orb" />
         <div className="global-bg-orb" />
         <div className="global-bg-orb" />
         <div className="global-bg-orb" />
         <div className="global-bg-orb" />
-        <ParticlesBg count={20} color="rgba(99,102,241,.14)" />
+        <ParticlesBg count={24} color="rgba(99,102,241,.14)" />
       </div>
 
       <header className="header">
