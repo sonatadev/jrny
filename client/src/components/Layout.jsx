@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../js/auth'
 import Icon from './Icon'
 import ParticlesBg from './ParticlesBg'
+const isMobile = typeof window !== 'undefined' && window.innerWidth <= 640
 
 export default function Layout({ children, title, backTo }) {
   const { user, logout } = useAuth()
@@ -21,7 +22,7 @@ export default function Layout({ children, title, backTo }) {
         <div className="global-bg-orb" />
         <div className="global-bg-orb" />
         <div className="global-bg-orb" />
-        <ParticlesBg count={24} color="rgba(99,102,241,.14)" />
+        <ParticlesBg count={isMobile ? 8 : 24} color="rgba(99,102,241,.14)" />
       </div>
 
       <header className="header">

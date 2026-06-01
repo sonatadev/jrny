@@ -146,9 +146,10 @@ img { max-width: 100%; display: block; }
   0%, 100% { background-position: -150% center; }
   50%       { background-position: 250% center; }
 }
-@keyframes auroraSpin {
-  from { transform: translate(-50%, -50%) rotate(0deg); }
-  to   { transform: translate(-50%, -50%) rotate(360deg); }
+@keyframes auroraShift {
+  0%, 100% { background-position: 0% 50%; }
+  33%       { background-position: 100% 0%; }
+  66%       { background-position: 50% 100%; }
 }
 @keyframes textShimmer {
   0%   { background-position: -200% center; }
@@ -186,61 +187,60 @@ img { max-width: 100%; display: block; }
 }
 .global-bg-aurora {
   position: absolute;
-  width: 180vmax; height: 180vmax;
-  top: 50%; left: 50%;
-  background: conic-gradient(
-    from 0deg at 50% 50%,
-    rgba(99,102,241,.04) 0deg,
-    rgba(139,92,246,.07) 72deg,
-    rgba(59,130,246,.04) 144deg,
-    rgba(16,185,129,.03) 216deg,
-    rgba(236,72,153,.05) 288deg,
-    rgba(99,102,241,.04) 360deg
+  inset: -50%;
+  background: linear-gradient(
+    135deg,
+    rgba(99,102,241,.05) 0%,
+    rgba(139,92,246,.08) 25%,
+    rgba(59,130,246,.04) 50%,
+    rgba(16,185,129,.03) 75%,
+    rgba(236,72,153,.05) 100%
   );
-  animation: auroraSpin 90s linear infinite;
-  will-change: transform;
+  background-size: 400% 400%;
+  animation: auroraShift 30s ease-in-out infinite;
   pointer-events: none;
 }
 .global-bg-orb {
   position: absolute;
   border-radius: 50%;
   filter: blur(72px);
-  animation: meshDrift linear infinite, orbPulse ease-in-out infinite;
+  animation: meshDrift linear infinite;
   opacity: .55;
+  will-change: transform;
 }
-.global-bg-orb:nth-child(1) {
+.global-bg-orb:nth-child(2) {
   width: 660px; height: 660px;
   background: radial-gradient(circle, rgba(99,102,241,.18) 0%, transparent 68%);
   top: -220px; left: -180px;
-  animation-duration: 22s, 8s;
+  animation-duration: 22s;
 }
-.global-bg-orb:nth-child(2) {
+.global-bg-orb:nth-child(3) {
   width: 520px; height: 520px;
   background: radial-gradient(circle, rgba(139,92,246,.14) 0%, transparent 68%);
   top: 38%; right: -160px;
-  animation-duration: 28s, 9s;
-  animation-delay: -8s, -2s;
+  animation-duration: 28s;
+  animation-delay: -8s;
 }
-.global-bg-orb:nth-child(3) {
+.global-bg-orb:nth-child(4) {
   width: 420px; height: 420px;
   background: radial-gradient(circle, rgba(16,185,129,.10) 0%, transparent 68%);
   bottom: -80px; left: 28%;
-  animation-duration: 34s, 11s;
-  animation-delay: -14s, -5s;
+  animation-duration: 34s;
+  animation-delay: -14s;
 }
-.global-bg-orb:nth-child(4) {
+.global-bg-orb:nth-child(5) {
   width: 380px; height: 380px;
   background: radial-gradient(circle, rgba(236,72,153,.09) 0%, transparent 68%);
   top: 15%; left: 50%;
-  animation-duration: 40s, 13s;
-  animation-delay: -20s, -7s;
+  animation-duration: 40s;
+  animation-delay: -20s;
 }
-.global-bg-orb:nth-child(5) {
+.global-bg-orb:nth-child(6) {
   width: 300px; height: 300px;
   background: radial-gradient(circle, rgba(59,130,246,.10) 0%, transparent 68%);
   bottom: 20%; left: -80px;
-  animation-duration: 26s, 7s;
-  animation-delay: -5s, -1s;
+  animation-duration: 26s;
+  animation-delay: -5s;
 }
 
 /* ═══════════════════════════════════════════
@@ -1973,6 +1973,42 @@ select.form-control { cursor: pointer; }
   /* New trip page */
   .new-trip-hero { padding: 1.3rem 1rem; margin-bottom: 1.1rem; }
   .new-trip-hero-title { font-size: 1.35rem; }
+}
+
+/* ═══════════════════════════════════════════
+   MOBILE PERFORMANCE — kill expensive GPU work
+═══════════════════════════════════════════ */
+@media (max-width: 640px) {
+  /* Kill the rotating/shifting aurora entirely */
+  .global-bg-aurora { display: none; }
+
+  /* Remove blur from orbs — biggest GPU win */
+  .global-bg-orb { filter: none !important; opacity: .25 !important; }
+
+  /* Slow down orb drift so they don't churn the compositor */
+  .global-bg-orb:nth-child(2) { animation-duration: 40s; }
+  .global-bg-orb:nth-child(3) { animation-duration: 50s; }
+  .global-bg-orb:nth-child(4) { animation-duration: 60s; }
+  .global-bg-orb:nth-child(5) { display: none; }
+  .global-bg-orb:nth-child(6) { display: none; }
+
+  /* Disable shimmer sweeps on hero text (background-clip: text is janky on mobile) */
+  .dashboard-hero-title,
+  .new-trip-hero-title {
+    background: none;
+    -webkit-text-fill-color: #fff;
+    color: #fff;
+    animation: pageEnter .45s cubic-bezier(.22,.68,0,1.2) forwards;
+  }
+
+  /* Keep hero gradient but stop it animating */
+  .dashboard-hero { animation: pageEnter .45s cubic-bezier(.22,.68,0,1.2) forwards; }
+}
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  .global-bg-aurora, .global-bg-orb, .particles-wrap { display: none; }
 }
 
 /* ═══════════════════════════════════════════
