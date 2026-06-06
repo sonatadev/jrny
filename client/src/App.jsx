@@ -6,7 +6,11 @@ import DashboardPage from './pages/DashboardPage'
 import NewTripPage from './pages/NewTripPage'
 import TripPage from './pages/TripPage'
 import SharePage from './pages/SharePage'
-import { useEffect, useState } from 'react'
+import SettingsPage from './pages/SettingsPage'
+import { useEffect, useState, lazy, Suspense } from 'react'
+
+// L'editor note (TipTap) è pesante: caricato solo quando serve
+const NotePage = lazy(() => import('./pages/NotePage'))
 import { joinViaLink } from './js/api'
 
 function PrivateRoute({ children }) {
@@ -55,6 +59,8 @@ export default function App() {
           <Route path="/" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
           <Route path="/trips/new" element={<PrivateRoute><NewTripPage /></PrivateRoute>} />
           <Route path="/trips/:id" element={<PrivateRoute><TripPage /></PrivateRoute>} />
+          <Route path="/trips/:id/note/:noteId" element={<PrivateRoute><Suspense fallback={<div className="page-loading"><div className="spinner" /></div>}><NotePage /></Suspense></PrivateRoute>} />
+          <Route path="/settings" element={<PrivateRoute><SettingsPage /></PrivateRoute>} />
           <Route path="/join/:token" element={<JoinPage />} />
           <Route path="/share/:token" element={<SharePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

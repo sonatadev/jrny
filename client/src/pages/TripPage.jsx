@@ -14,7 +14,9 @@ import PackingTab from '../components/PackingTab'
 import MapTab from '../components/MapTab'
 import WeatherTab from '../components/WeatherTab'
 import GalleryTab from '../components/GalleryTab'
-import { getTrip, getDays, getWishlist, getBudget, deleteTrip, getCities, getTripVersion, getTripPhotos } from '../js/api'
+import NotesTab from '../components/NotesTab'
+import TransportsTab from '../components/TransportsTab'
+import { getTrip, getDays, getWishlist, getBudget, deleteTrip, getCities, getTripVersion, getTripPhotos, getNotes, getNoteImages, getTransports } from '../js/api'
 import { format, parseISO, differenceInDays } from 'date-fns'
 import { it } from 'date-fns/locale'
 
@@ -22,29 +24,42 @@ const TABS = [
   { key: 'info',       label: 'Info',       short: 'Info',   icon: 'info' },
   { key: 'itinerario', label: 'Itinerario', short: 'Giorni', icon: 'itinerary' },
   { key: 'piano',      label: 'Piano',      short: 'Piano',  icon: 'notes' },
-  { key: 'citta',      label: 'Città',      short: 'Città',  icon: 'pin' },
   { key: 'mete',       label: 'Mete',       short: 'Mete',   icon: 'star' },
   { key: 'budget',     label: 'Budget',     short: 'Budget', icon: 'euro' },
   { key: 'packing',    label: 'Zaino',      short: 'Zaino',  icon: 'backpack' },
+  { key: 'trasporti',  label: 'Trasporti',  short: 'Trasp.', icon: 'plane' },
+  { key: 'note',       label: 'Note',       short: 'Note',   icon: 'notes' },
   { key: 'mappa',      label: 'Mappa',      short: 'Mappa',  icon: 'map' },
-  { key: 'meteo',      label: 'Meteo',      short: 'Meteo',  icon: 'cloud' },
-  { key: 'foto',       label: 'Foto',       short: 'Foto',   icon: 'image' },
 ]
 
 const PRIMARY_NAV = ['info', 'itinerario', 'mete', 'mappa']
-const MORE_NAV    = ['piano', 'citta', 'packing', 'budget', 'meteo', 'foto']
+const MORE_NAV    = ['piano', 'budget', 'packing', 'trasporti', 'note']
+
+// Sotto-viste consolidate dentro una tab (riduce il numero di destinazioni top-level)
+const SUBTABS = {
+  info:       [{ key: 'panoramica', label: 'Panoramica', icon: 'info' }, { key: 'meteo', label: 'Meteo', icon: 'cloud' }],
+  itinerario: [{ key: 'giorni',     label: 'Giorni',     icon: 'itinerary' }, { key: 'foto', label: 'Foto', icon: 'image' }],
+  mappa:      [{ key: 'mappa',      label: 'Mappa',      icon: 'map' }, { key: 'citta', label: 'Città', icon: 'pin' }],
+}
 
 export default function TripPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [tab, setTab] = useState('info')
+  const [subView, setSubView] = useState(null)
   const [moreOpen, setMoreOpen] = useState(false)
+
+  // Cambia tab azzerando la sotto-vista (torna al primo sub di default)
+  const selectTab = (key) => { setTab(key); setSubView(null) }
   const [trip, setTrip] = useState(null)
   const [days, setDays] = useState([])
   const [wishlist, setWishlist] = useState([])
   const [budget, setBudget] = useState(null)
   const [cities, setCities] = useState([])
   const [photos, setPhotos] = useState([])
+  const [notes, setNotes] = useState([])
+  const [noteImages, setNoteImages] = useState([])
+  const [transports, setTransports] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const { confirm: doConfirm, modal: confirmModal } = useConfirm()
@@ -52,8 +67,8 @@ export default function TripPage() {
 
   const loadAll = useCallback(async () => {
     try {
-      const [tripRes, daysRes, wlRes, budRes, citiesRes, photosRes] = await Promise.all([
-        getTrip(id), getDays(id), getWishlist(id), getBudget(id), getCities(id), getTripPhotos(id)
+      const [tripRes, daysRes, wlRes, budRes, citiesRes, photosRes, notesRes, noteImagesRes, transportsRes] = await Promise.all([
+        getTrip(id), getDays(id), getWishlist(id), getBudget(id), getCities(id), getTripPhotos(id), getNotes(id), getNoteImages(id), getTransports(id)
       ])
       setTrip(tripRes.data)
       setDays(daysRes.data)
@@ -61,6 +76,9 @@ export default function TripPage() {
       setBudget(budRes.data)
       setCities(citiesRes.data)
       setPhotos(photosRes.data)
+      setNotes(notesRes.data)
+      setNoteImages(noteImagesRes.data)
+      setTransports(transportsRes.data)
     } catch (err) {
       setError(err.response?.data?.error || 'Errore nel caricamento del viaggio')
     } finally {
@@ -107,6 +125,9 @@ export default function TripPage() {
   const end       = parseISO(trip.end_date)
   const totalDays = differenceInDays(end, start) + 1
   const daysUntil = differenceInDays(start, new Date())
+
+  const subTabs = SUBTABS[tab]
+  const sub = subView || subTabs?.[0]?.key
 
   return (
     <Layout title={trip.title} backTo="/">
@@ -163,7 +184,7 @@ export default function TripPage() {
       <div className="card trip-tab-card">
         <div className="tabs">
           {TABS.map(t => (
-            <button key={t.key} className={`tab-btn ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
+            <button key={t.key} className={`tab-btn ${tab === t.key ? 'active' : ''}`} onClick={() => selectTab(t.key)}>
               <Icon name={t.icon} size={15} color={tab === t.key ? 'var(--primary)' : 'var(--text-muted)'} />
               {t.label}
             </button>
@@ -171,18 +192,35 @@ export default function TripPage() {
         </div>
 
         <div key={tab} className="trip-tab-content">
-          {tab === 'info' && (
+          {subTabs && (
+            <div className="subtabs" role="tablist">
+              {subTabs.map(s => (
+                <button key={s.key} role="tab" aria-selected={sub === s.key}
+                  className={`subtab-btn ${sub === s.key ? 'active' : ''}`}
+                  onClick={() => setSubView(s.key)}>
+                  <Icon name={s.icon} size={14} color={sub === s.key ? 'var(--primary)' : 'var(--text-muted)'} />
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {tab === 'info' && sub === 'panoramica' && (
             <InfoTab trip={trip} myRole={myRole} onTripUpdated={loadAll} days={days} />
           )}
-          {tab === 'itinerario' && (
+          {tab === 'info' && sub === 'meteo' && <WeatherTab trip={trip} />}
+
+          {tab === 'itinerario' && sub === 'giorni' && (
             <ItineraryTab tripId={id} days={days} myRole={myRole} onRefresh={loadAll}
-              wishlist={wishlist} cities={cities} onCitiesRefresh={loadAll} photos={photos} />
+              wishlist={wishlist} cities={cities} onCitiesRefresh={loadAll} photos={photos}
+              transports={transports} />
           )}
+          {tab === 'itinerario' && sub === 'foto' && (
+            <GalleryTab wishlist={wishlist} photos={photos} tripId={id} myRole={myRole} onRefresh={loadAll} />
+          )}
+
           {tab === 'piano' && (
             <PianoTab tripId={id} wishlist={wishlist} days={days} myRole={myRole} onRefresh={loadAll} />
-          )}
-          {tab === 'citta' && (
-            <CitiesTab tripId={id} cities={cities} wishlist={wishlist} myRole={myRole} onRefresh={loadAll} />
           )}
           {tab === 'mete' && (
             <WishlistTab tripId={id} wishlist={wishlist} days={days} myRole={myRole}
@@ -194,11 +232,21 @@ export default function TripPage() {
           {tab === 'packing' && (
             <PackingTab tripId={id} myRole={myRole} participants={trip.participants} />
           )}
-          {tab === 'mappa' && (
+          {tab === 'trasporti' && (
+            <TransportsTab tripId={id} transports={transports} cities={cities} days={days}
+              myRole={myRole} onRefresh={loadAll} />
+          )}
+          {tab === 'note' && (
+            <NotesTab tripId={id} notes={notes} noteImages={noteImages} cities={cities} participants={trip.participants}
+              myRole={myRole} onRefresh={loadAll} />
+          )}
+
+          {tab === 'mappa' && sub === 'mappa' && (
             <MapTab tripId={id} cities={cities} wishlist={wishlist} trip={trip} />
           )}
-          {tab === 'meteo' && <WeatherTab trip={trip} />}
-          {tab === 'foto' && <GalleryTab wishlist={wishlist} photos={photos} tripId={id} myRole={myRole} onRefresh={loadAll} />}
+          {tab === 'mappa' && sub === 'citta' && (
+            <CitiesTab tripId={id} cities={cities} wishlist={wishlist} myRole={myRole} onRefresh={loadAll} />
+          )}
         </div>
       </div>
 
@@ -208,7 +256,7 @@ export default function TripPage() {
       <nav className="bottom-nav" aria-label="Navigazione principale">
         {TABS.filter(t => PRIMARY_NAV.includes(t.key)).map(t => (
           <button key={t.key} className={`bottom-nav-item${tab === t.key ? ' active' : ''}`}
-            onClick={() => setTab(t.key)}>
+            onClick={() => selectTab(t.key)}>
             <Icon name={t.icon} size={22} color={tab === t.key ? 'var(--primary)' : 'var(--text-light)'} />
             <span>{t.short}</span>
           </button>
@@ -233,7 +281,7 @@ export default function TripPage() {
                 <button
                   key={t.key}
                   className={`more-drawer-item${tab === t.key ? ' active' : ''}`}
-                  onClick={() => { setTab(t.key); setMoreOpen(false) }}
+                  onClick={() => { selectTab(t.key); setMoreOpen(false) }}
                 >
                   <div className="more-drawer-icon">
                     <Icon name={t.icon} size={26} color={tab === t.key ? 'var(--primary)' : 'var(--text-muted)'} />

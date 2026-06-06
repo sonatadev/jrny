@@ -202,15 +202,25 @@ router.delete('/:dayId/activities/:actId', async (req, res) => {
   try {
     if (!await dayBelongsToTrip(req.params.dayId, req.params.id))
       return res.status(404).json({ error: 'Giorno non trovato' });
-    // Se l'attività era da wishlist, de-slotta il posto
+    // Recupera il posto wishlist collegato prima di cancellare
     const act = await pool.query('SELECT wishlist_place_id FROM day_activities WHERE id=$1 AND day_id=$2', [req.params.actId, req.params.dayId]);
-    if (act.rows.length && act.rows[0].wishlist_place_id) {
-      await pool.query(
-        'UPDATE wishlist_places SET is_slotted=false, day_id=NULL, slot=NULL WHERE id=$1',
-        [act.rows[0].wishlist_place_id]
-      );
-    }
     await pool.query('DELETE FROM day_activities WHERE id=$1 AND day_id=$2', [req.params.actId, req.params.dayId]);
+
+    // De-slotta il posto SOLO se non ha più nessun'altra attività collegata
+    // (un posto può essere assegnato a più giorni/slot contemporaneamente)
+    const placeId = act.rows[0]?.wishlist_place_id;
+    if (placeId) {
+      const remaining = await pool.query(
+        'SELECT 1 FROM day_activities WHERE wishlist_place_id=$1 LIMIT 1',
+        [placeId]
+      );
+      if (!remaining.rows.length) {
+        await pool.query(
+          'UPDATE wishlist_places SET is_slotted=false, day_id=NULL, slot=NULL WHERE id=$1',
+          [placeId]
+        );
+      }
+    }
     res.json({ message: 'Attività eliminata' });
   } catch (err) {
     console.error(err);

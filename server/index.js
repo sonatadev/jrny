@@ -38,6 +38,13 @@ function uploadStatic(dir, { forceDownload = false } = {}) {
 // Uploads directory
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+// Allegati e biglietti possono contenere dati personali: NON sono pubblici.
+// Vengono serviti solo dall'endpoint autenticato GET /api/files/attachment/:filename,
+// che verifica login + appartenenza al viaggio. Qui blocchiamo l'accesso diretto
+// (il mount statico generico /uploads servirebbe altrimenti anche questa sottocartella).
+app.use('/uploads/attachments', (req, res) => res.status(404).end());
+
 app.use('/uploads', uploadStatic(uploadsDir));
 
 // Multer storage
@@ -68,6 +75,9 @@ app.post('/api/upload', authMiddleware, upload.single('image'), (req, res) => {
 });
 
 // Route protette
+app.use('/api/users', authMiddleware, require('./routes/users'));
+// Download autenticato di allegati e biglietti (verifica appartenenza al viaggio)
+app.use('/api/files', authMiddleware, require('./routes/files'));
 app.use('/api/trips', authMiddleware, require('./routes/trips'));
 app.use('/api/trips/:id/days', authMiddleware, require('./routes/days'));
 app.use('/api/trips/:id/wishlist', authMiddleware, require('./routes/wishlist'));
@@ -75,11 +85,31 @@ app.use('/api/trips/:id/budget', authMiddleware, require('./routes/budget'));
 app.use('/api/trips/:id/packing', authMiddleware, require('./routes/packing'));
 app.use('/api/trips/:id/cities', authMiddleware, require('./routes/cities'));
 app.use('/api/trips/:id/attachments', authMiddleware, require('./routes/attachments'));
-app.use('/uploads/attachments', uploadStatic(path.join(__dirname, 'uploads/attachments'), { forceDownload: true }));
 app.use('/api/trips/:id/photos', authMiddleware, require('./routes/photos'));
 app.use('/uploads/photos', uploadStatic(path.join(__dirname, 'uploads/photos')));
+app.use('/api/trips/:id/notes', authMiddleware, require('./routes/notes'));
+app.use('/api/trips/:id/note-images', authMiddleware, require('./routes/note_images'));
+app.use('/uploads/note-images', uploadStatic(path.join(__dirname, 'uploads/note-images')));
+app.use('/api/trips/:id/transports', authMiddleware, require('./routes/transports'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+
+// Error handler globale: traduce gli errori (in particolare quelli di multer:
+// file troppo grande, tipo non consentito) in JSON pulito invece della pagina
+// HTML con stack trace del gestore di default di Express.
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    const msg = err.code === 'LIMIT_FILE_SIZE' ? 'File troppo grande' : 'Upload non valido';
+    return res.status(400).json({ error: msg });
+  }
+  // Errori sollevati dai fileFilter (es. "Solo immagini consentite")
+  if (err && /consentit|ammessi|immagini|PDF/i.test(err.message || '')) {
+    return res.status(400).json({ error: err.message });
+  }
+  console.error(err);
+  res.status(500).json({ error: 'Errore interno del server' });
+});
 
 const PORT = process.env.PORT || 3090;
 

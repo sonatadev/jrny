@@ -1,5 +1,6 @@
 const router = require('express').Router({ mergeParams: true });
 const { pool } = require('../db/init');
+const { parseNumber } = require('../utils/security');
 
 async function checkAccess(tripId, userId, minRole = 'viewer') {
   const res = await pool.query(
@@ -63,12 +64,12 @@ router.put('/total', async (req, res) => {
   const role = await checkAccess(req.params.id, req.user.id, 'editor');
   if (!role) return res.status(403).json({ error: 'Permesso insufficiente' });
 
-  const { total_budget } = req.body;
-  if (total_budget === undefined) return res.status(400).json({ error: 'Budget obbligatorio' });
+  const tot = parseNumber(req.body.total_budget, { field: 'Budget', min: 0, allowNull: false });
+  if (tot.error) return res.status(400).json({ error: tot.error });
 
   try {
-    await pool.query('UPDATE trips SET total_budget=$1 WHERE id=$2', [total_budget, req.params.id]);
-    res.json({ total_budget: parseFloat(total_budget) });
+    await pool.query('UPDATE trips SET total_budget=$1 WHERE id=$2', [tot.value, req.params.id]);
+    res.json({ total_budget: tot.value });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Errore aggiornamento budget' });
@@ -80,14 +81,16 @@ router.post('/', async (req, res) => {
   const role = await checkAccess(req.params.id, req.user.id, 'editor');
   if (!role) return res.status(403).json({ error: 'Permesso insufficiente' });
 
-  const { amount, category, description, paid_by_user_id, paid_by_name, entry_date } = req.body;
-  if (!amount || !category) return res.status(400).json({ error: 'Importo e categoria obbligatori' });
+  const { category, description, paid_by_user_id, paid_by_name, entry_date } = req.body;
+  if (!category) return res.status(400).json({ error: 'Importo e categoria obbligatori' });
+  const amt = parseNumber(req.body.amount, { field: 'Importo', min: 0, allowNull: false });
+  if (amt.error) return res.status(400).json({ error: amt.error });
 
   try {
     const result = await pool.query(
       `INSERT INTO budget_entries (trip_id, amount, category, description, paid_by_user_id, paid_by_name, entry_date)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [req.params.id, amount, category, description, paid_by_user_id || null, paid_by_name || null, entry_date || new Date().toISOString().split('T')[0]]
+      [req.params.id, amt.value, category, description, paid_by_user_id || null, paid_by_name || null, entry_date || new Date().toISOString().split('T')[0]]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -101,15 +104,24 @@ router.put('/:entryId', async (req, res) => {
   const role = await checkAccess(req.params.id, req.user.id, 'editor');
   if (!role) return res.status(403).json({ error: 'Permesso insufficiente' });
 
-  const { amount, category, description, paid_by_user_id, paid_by_name, entry_date } = req.body;
+  const { category, description, paid_by_user_id, paid_by_name, entry_date } = req.body;
+  const amt = parseNumber(req.body.amount, { field: 'Importo', min: 0 });
+  if (amt.error) return res.status(400).json({ error: amt.error });
   try {
+    const linked = await pool.query(
+      'SELECT transport_id FROM budget_entries WHERE id=$1 AND trip_id=$2',
+      [req.params.entryId, req.params.id]
+    );
+    if (linked.rows.length && linked.rows[0].transport_id)
+      return res.status(400).json({ error: 'Voce gestita dai Trasporti: modificala dalla sezione Trasporti' });
+
     const result = await pool.query(
       `UPDATE budget_entries SET
         amount=COALESCE($1,amount), category=COALESCE($2,category),
         description=COALESCE($3,description), paid_by_user_id=COALESCE($4,paid_by_user_id),
         paid_by_name=COALESCE($5,paid_by_name), entry_date=COALESCE($6,entry_date)
        WHERE id=$7 AND trip_id=$8 RETURNING *`,
-      [amount, category, description, paid_by_user_id, paid_by_name, entry_date, req.params.entryId, req.params.id]
+      [amt.value, category, description, paid_by_user_id, paid_by_name, entry_date, req.params.entryId, req.params.id]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Spesa non trovata' });
     res.json(result.rows[0]);
@@ -125,6 +137,13 @@ router.delete('/:entryId', async (req, res) => {
   if (!role) return res.status(403).json({ error: 'Permesso insufficiente' });
 
   try {
+    const linked = await pool.query(
+      'SELECT transport_id FROM budget_entries WHERE id=$1 AND trip_id=$2',
+      [req.params.entryId, req.params.id]
+    );
+    if (linked.rows.length && linked.rows[0].transport_id)
+      return res.status(400).json({ error: 'Voce gestita dai Trasporti: eliminala dalla sezione Trasporti' });
+
     await pool.query('DELETE FROM budget_entries WHERE id=$1 AND trip_id=$2', [req.params.entryId, req.params.id]);
     res.json({ message: 'Spesa eliminata' });
   } catch (err) {

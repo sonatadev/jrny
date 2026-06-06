@@ -7,7 +7,7 @@ router.get('/:token', async (req, res) => {
     if (!tripRes.rows.length) return res.status(404).json({ error: 'Link non valido o scaduto' });
     const t = tripRes.rows[0];
 
-    const [daysRes, wishlistRes, participantsRes] = await Promise.all([
+    const [daysRes, wishlistRes, participantsRes, transportsRes] = await Promise.all([
       pool.query(`
         SELECT td.*, tc.name AS city_name, tc.color AS city_color,
           COALESCE(
@@ -27,14 +27,26 @@ router.get('/:token', async (req, res) => {
         GROUP BY td.id, tc.name, tc.color
         ORDER BY td.date
       `, [t.id]),
+      // Le note dei luoghi possono contenere appunti personali → escluse dallo share pubblico
       pool.query(
-        'SELECT name, city, category, priority, maps_link, notes FROM wishlist_places WHERE trip_id=$1 ORDER BY priority, name',
+        'SELECT name, city, category, priority, maps_link FROM wishlist_places WHERE trip_id=$1 ORDER BY priority, name',
         [t.id]
       ),
       pool.query(
         'SELECT u.name FROM trip_participants tp JOIN users u ON u.id=tp.user_id WHERE tp.trip_id=$1',
         [t.id]
       ),
+      // Solo campi non sensibili: niente costo, prenotazione, posto, link o biglietto
+      pool.query(`
+        SELECT tr.mode, tr.from_place, tr.to_place,
+               fc.name AS from_city_name, tcc.name AS to_city_name,
+               tr.depart_date, tr.depart_time, tr.arrive_date, tr.arrive_time, tr.carrier
+        FROM transports tr
+        LEFT JOIN trip_cities fc ON fc.id = tr.from_city_id
+        LEFT JOIN trip_cities tcc ON tcc.id = tr.to_city_id
+        WHERE tr.trip_id = $1
+        ORDER BY tr.depart_date NULLS LAST, tr.depart_time NULLS LAST, tr.sort_order, tr.created_at
+      `, [t.id]),
     ]);
 
     res.json({
@@ -46,6 +58,7 @@ router.get('/:token', async (req, res) => {
       days: daysRes.rows,
       wishlist: wishlistRes.rows,
       participants: participantsRes.rows.map(r => r.name),
+      transports: transportsRes.rows,
     });
   } catch (err) {
     console.error(err);

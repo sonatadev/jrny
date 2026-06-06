@@ -14,6 +14,30 @@ function isValidEmail(email) {
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+// Accetta solo URL http/https assoluti; blocca schemi pericolosi (javascript:, data:, ecc.)
+// usati come href/src lato client. Ritorna true anche per null/'' (campo opzionale, gestito a parte).
+function isSafeUrl(value) {
+  if (value === null || value === undefined || value === '') return true;
+  if (typeof value !== 'string') return false;
+  try {
+    const u = new URL(value.trim());
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+// Valida e tronca un numero finito; ritorna { value } oppure { error }.
+function parseNumber(raw, { field = 'Valore', min = -Infinity, max = Infinity, allowNull = true } = {}) {
+  if (raw === undefined || raw === null || raw === '') {
+    if (allowNull) return { value: null };
+    return { error: `${field} obbligatorio` };
+  }
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < min || n > max) return { error: `${field} non valido` };
+  return { value: n };
+}
+
 // Escape dei caratteri HTML pericolosi (per interpolazione in template email/HTML)
 function escapeHtml(value) {
   if (value === null || value === undefined) return '';
@@ -57,4 +81,4 @@ function rateLimit({ windowMs = 15 * 60 * 1000, max = 10, message = 'Troppe rich
   };
 }
 
-module.exports = { VALID_ROLES, isValidRole, isValidEmail, escapeHtml, rateLimit };
+module.exports = { VALID_ROLES, isValidRole, isValidEmail, isSafeUrl, parseNumber, escapeHtml, rateLimit };

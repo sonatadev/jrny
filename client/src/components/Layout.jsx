@@ -41,9 +41,15 @@ export default function Layout({ children, title, backTo }) {
           {title && <span className="header-trip-title">· {title}</span>}
         </div>
         <div className="header-actions">
+          <button className="btn btn-ghost btn-icon" title="Impostazioni" onClick={() => navigate('/settings')}>
+            <Icon name="settings" size={18} />
+          </button>
           <div className="header-user">
-            <div className="avatar header-avatar" title={user?.name}>
-              {user?.name?.[0]?.toUpperCase()}
+            <div className="avatar header-avatar" title={user?.name} style={{ cursor: 'pointer', overflow: 'hidden' }}
+              onClick={() => navigate('/settings')}>
+              {user?.avatar_url
+                ? <img src={user.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : user?.name?.[0]?.toUpperCase()}
             </div>
             <span className="header-username">{user?.name}</span>
             <button className="btn btn-ghost btn-sm header-logout" onClick={handleLogout}>Esci</button>

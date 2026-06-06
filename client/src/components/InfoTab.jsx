@@ -10,7 +10,7 @@ import {
   updateTrip, inviteToTrip, updateParticipantRole, removeParticipant, cancelInvitation,
   generateInviteLink, revokeInviteLink,
   toggleShareLink,
-  getAttachments, uploadAttachment, deleteAttachment,
+  getAttachments, uploadAttachment, deleteAttachment, openAttachment,
   cloneTrip, uploadImage, updateTripNotes,
 } from '../js/api'
 
@@ -101,6 +101,18 @@ function exportIcal(trip, days) {
   URL.revokeObjectURL(url)
 }
 
+// Escape dei caratteri HTML: i dati del viaggio vengono interpolati in una stringa HTML
+// e iniettati con document.write, fuori dalla protezione di React → previene XSS stored.
+function esc(value) {
+  if (value === null || value === undefined) return ''
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 function printItinerary(trip, days) {
   const SLOTS = ['mattina', 'pomeriggio', 'sera', 'notte']
   const SLOT_LABELS = { mattina: 'Mattina', pomeriggio: 'Pomeriggio', sera: 'Sera', notte: 'Notte' }
@@ -112,16 +124,16 @@ function printItinerary(trip, days) {
       return `<div style="margin-bottom:8px">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#888;margin-bottom:4px">${SLOT_LABELS[s]}</div>
         ${sActs.map(a => `<div style="padding:4px 0;border-bottom:1px solid #eee;font-size:13px">
-          <strong>${a.name}</strong>${a.time ? ` <span style="color:#888;font-size:11px">${a.time.slice(0,5)}</span>` : ''}
-          ${a.notes ? `<div style="color:#666;font-size:11px;margin-top:2px">${a.notes}</div>` : ''}
+          <strong>${esc(a.name)}</strong>${a.time ? ` <span style="color:#888;font-size:11px">${esc(a.time.slice(0,5))}</span>` : ''}
+          ${a.notes ? `<div style="color:#666;font-size:11px;margin-top:2px">${esc(a.notes)}</div>` : ''}
         </div>`).join('')}
       </div>`
     }).join('')
     const dateLabel = new Date(day.date + 'T00:00:00').toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })
     return `<div style="margin-bottom:20px;page-break-inside:avoid">
       <div style="background:#f5f0eb;padding:8px 12px;border-radius:6px;margin-bottom:8px">
-        <strong>${dateLabel}</strong>${day.city_name ? ` <span style="color:#c26b4a;font-size:12px">&nbsp;· ${day.city_name}</span>` : ''}
-        ${day.notes ? `<div style="font-size:12px;color:#666;margin-top:2px;font-style:italic">${day.notes}</div>` : ''}
+        <strong>${esc(dateLabel)}</strong>${day.city_name ? ` <span style="color:#c26b4a;font-size:12px">&nbsp;· ${esc(day.city_name)}</span>` : ''}
+        ${day.notes ? `<div style="font-size:12px;color:#666;margin-top:2px;font-style:italic">${esc(day.notes)}</div>` : ''}
       </div>
       ${slotRows || '<div style="color:#aaa;font-size:12px;font-style:italic">Nessuna attività</div>'}
     </div>`
@@ -131,7 +143,7 @@ function printItinerary(trip, days) {
 <html lang="it">
 <head>
   <meta charset="UTF-8">
-  <title>${trip.title}</title>
+  <title>${esc(trip.title)}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, sans-serif; color: #222; background: #fff; padding: 32px; max-width: 800px; margin: 0 auto; }
@@ -141,9 +153,9 @@ function printItinerary(trip, days) {
   </style>
 </head>
 <body>
-  <h1>✈️ ${trip.title}</h1>
+  <h1>✈️ ${esc(trip.title)}</h1>
   <div class="meta">
-    📍 ${trip.destination} &nbsp;·&nbsp;
+    📍 ${esc(trip.destination)} &nbsp;·&nbsp;
     ${new Date(trip.start_date).toLocaleDateString('it-IT', { day: 'numeric', month: 'long' })} – ${new Date(trip.end_date).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}
   </div>
   ${dayRows}
@@ -542,7 +554,9 @@ export default function InfoTab({ trip, myRole, onTripUpdated, days }) {
                 <span style={{ fontSize: '1.3rem', flexShrink: 0 }}>{fileIcon(att.mime_type)}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '.875rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    <a href={att.file_path} target="_blank" rel="noreferrer" style={{ color: 'var(--text)', textDecoration: 'none' }}>{att.name}</a>
+                    <a role="button" tabIndex={0}
+                      onClick={() => openAttachment(att.file_path).catch(() => alert('Impossibile aprire il file'))}
+                      style={{ color: 'var(--text)', textDecoration: 'none', cursor: 'pointer' }}>{att.name}</a>
                   </div>
                   <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>
                     {formatBytes(att.file_size)} · {att.uploader_name}

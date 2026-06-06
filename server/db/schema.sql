@@ -6,6 +6,21 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Feature: profilo utente esteso
+ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(100);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(100);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(40);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS age INTEGER;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+
+-- Feature: preferenze estetiche legate all'account (sync tra dispositivi)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS theme VARCHAR(20) DEFAULT 'sunset';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS mode VARCHAR(10) DEFAULT 'light';
+
+-- Sicurezza: versione del token per la revoca (incrementata al cambio password
+-- → invalida tutti i JWT emessi in precedenza, anche se non ancora scaduti)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0;
+
 CREATE TABLE IF NOT EXISTS trips (
   id SERIAL PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
@@ -158,3 +173,60 @@ CREATE TABLE IF NOT EXISTS trip_photos (
   uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Feature: bacheca note (generale / per città / per partecipante)
+CREATE TABLE IF NOT EXISTS note_cards (
+  id SERIAL PRIMARY KEY,
+  trip_id INTEGER REFERENCES trips(id) ON DELETE CASCADE,
+  title VARCHAR(255),
+  body TEXT,
+  scope VARCHAR(20) NOT NULL DEFAULT 'general',        -- 'general' | 'city' | 'participant'
+  city_id INTEGER REFERENCES trip_cities(id) ON DELETE CASCADE,
+  participant_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  color VARCHAR(7) DEFAULT '#f59e0b',
+  sort_order INTEGER DEFAULT 0,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Feature: immagini di pianificazione nella bacheca note (screenshot, ispirazioni…)
+CREATE TABLE IF NOT EXISTS note_images (
+  id SERIAL PRIMARY KEY,
+  trip_id INTEGER REFERENCES trips(id) ON DELETE CASCADE,
+  url TEXT NOT NULL,
+  label VARCHAR(255),
+  sort_order INTEGER DEFAULT 0,
+  uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Feature: trasporti / spostamenti tra luoghi
+CREATE TABLE IF NOT EXISTS transports (
+  id SERIAL PRIMARY KEY,
+  trip_id INTEGER REFERENCES trips(id) ON DELETE CASCADE,
+  mode VARCHAR(20) NOT NULL DEFAULT 'treno',           -- volo|treno|bus|auto|traghetto|metro|apiedi|altro
+  from_place VARCHAR(255),
+  to_place VARCHAR(255),
+  from_city_id INTEGER REFERENCES trip_cities(id) ON DELETE SET NULL,
+  to_city_id INTEGER REFERENCES trip_cities(id) ON DELETE SET NULL,
+  depart_date DATE, depart_time TIME,
+  arrive_date DATE, arrive_time TIME,
+  cost DECIMAL(10,2),
+  carrier VARCHAR(255),       -- compagnia / numero treno-volo
+  booking_ref VARCHAR(255),   -- codice prenotazione
+  seat VARCHAR(100),          -- posto
+  link TEXT,                  -- link al biglietto
+  notes TEXT,
+  day_id INTEGER REFERENCES trip_days(id) ON DELETE SET NULL,  -- aggancio all'itinerario
+  sort_order INTEGER DEFAULT 0,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Feature: sincronizzazione costo trasporti ↔ budget
+ALTER TABLE budget_entries ADD COLUMN IF NOT EXISTS transport_id INTEGER REFERENCES transports(id) ON DELETE CASCADE;
+
+-- Feature: biglietto allegato (PDF/immagine) per trasporto
+ALTER TABLE transports ADD COLUMN IF NOT EXISTS ticket_path TEXT;
+ALTER TABLE transports ADD COLUMN IF NOT EXISTS ticket_name VARCHAR(255);

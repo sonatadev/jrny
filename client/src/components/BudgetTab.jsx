@@ -267,7 +267,15 @@ export default function BudgetTab({ tripId, budget, participants, myRole, onRefr
                 {(CAT_SHORT[e.category] || 'Alt')}
               </div>
               <div className="expense-info">
-                <div className="expense-desc">{e.description || e.category}</div>
+                <div className="expense-desc">
+                  {e.description || e.category}
+                  {e.transport_id && (
+                    <span title="Spesa generata dalla sezione Trasporti"
+                      style={{ marginLeft: '.4rem', fontSize: '.7rem', fontWeight: 600, color: 'var(--text-muted)', background: 'var(--surface)', padding: '.1rem .4rem', borderRadius: 99 }}>
+                      ✈️ da Trasporti
+                    </span>
+                  )}
+                </div>
                 <div className="expense-meta">
                   {e.entry_date} · Pagato da: {e.paid_by_user_name || e.paid_by_name || 'N/D'}
                   {' · '}{e.category}
@@ -275,7 +283,7 @@ export default function BudgetTab({ tripId, budget, participants, myRole, onRefr
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
                 <div className="expense-amount">€{parseFloat(e.amount).toFixed(2)}</div>
-                {canEdit && (
+                {canEdit && !e.transport_id && (
                   <>
                     <button className="btn btn-ghost btn-icon btn-sm" title="Modifica" onClick={() => openEdit(e)}>
                       <Icon name="edit" size={14} color="var(--text-muted)" />
@@ -284,6 +292,9 @@ export default function BudgetTab({ tripId, budget, participants, myRole, onRefr
                       <Icon name="trash" size={14} color="var(--danger)" />
                     </button>
                   </>
+                )}
+                {canEdit && e.transport_id && (
+                  <Icon name="lock" size={13} color="var(--text-light)" style={{ marginRight: '.35rem' }} />
                 )}
               </div>
             </div>

@@ -9,7 +9,8 @@ import Modal from './Modal'
 import Icon from './Icon'
 import { useConfirm } from './ConfirmModal'
 import CustomSelect from './CustomSelect'
-import { addActivity, updateActivity, deleteActivity, updateDay, addCity, deleteCity, reorderActivities, toggleActivityComplete, uploadTripPhoto, deleteTripPhoto } from '../js/api'
+import { addActivity, updateActivity, deleteActivity, updateDay, addCity, deleteCity, reorderActivities, toggleActivityComplete, uploadTripPhoto, deleteTripPhoto, deleteTransport, openAttachment } from '../js/api'
+import { TransportModal, modeEmoji, modeLabel } from './TransportsTab'
 
 const SLOTS = [
   { key: 'mattina',    label: 'Mattina',     colorClass: 'slot-icon-mattina',    color: '#f59e0b' },
@@ -76,7 +77,8 @@ function ActivityModal({ dayId, slot, tripId, onSaved, onClose, wishlist, activi
     } catch { } finally { setSaving(false) }
   }
 
-  const availableWishlist = wishlist?.filter(p => !p.is_slotted || p.id === form.wishlist_place_id) || []
+  // Mostra tutte le mete: un posto può essere collegato a più attività (più giorni/slot)
+  const availableWishlist = wishlist || []
 
   return (
     <Modal title={isEdit ? 'Modifica attività' : 'Aggiungi attività'} onClose={onClose}
@@ -491,8 +493,92 @@ function DayPhotosSection({ photos, activities, canEdit, tripId, dayId, onRefres
   )
 }
 
+/* ─── DayTransportsSection ──────────────────────────────────────────────────── */
+function DayTransportsSection({ transports, canEdit, tripId, dayId, cities, days, onRefresh }) {
+  const [modal, setModal] = useState(null) // 'add' | transport object
+  const { confirm: doConfirm, modal: confirmModal } = useConfirm()
+
+  function fmtTime(t) { return t ? t.slice(0, 5) : '' }
+
+  async function handleDelete(t) {
+    const ok = await doConfirm({ message: 'Eliminare questo spostamento?', confirmLabel: 'Elimina', danger: true })
+    if (!ok) return
+    try { await deleteTransport(tripId, t.id); onRefresh() } catch {}
+  }
+
+  return (
+    <div style={{ padding: '.65rem 1rem .75rem', borderTop: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: transports.length ? '.5rem' : 0 }}>
+        <span style={{ fontSize: '.78rem', fontWeight: 600, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '.3rem' }}>
+          <Icon name="plane" size={13} color="var(--text-muted)" />
+          Spostamenti{transports.length > 0 ? ` (${transports.length})` : ''}
+        </span>
+        {canEdit && (
+          <button className="btn btn-ghost btn-sm" onClick={() => setModal('add')}
+            style={{ fontSize: '.75rem', padding: '.2rem .5rem', display: 'flex', alignItems: 'center', gap: '.25rem' }}>
+            <Icon name="add" size={13} /> Trasporto
+          </button>
+        )}
+      </div>
+
+      {transports.map(t => {
+        const from = t.from_place || t.from_city_name || '—'
+        const to = t.to_place || t.to_city_name || '—'
+        const times = [fmtTime(t.depart_time), fmtTime(t.arrive_time)].filter(Boolean).join('→')
+        return (
+          <div key={t.id} className="activity-item">
+            <span style={{ fontSize: '1.05rem', flexShrink: 0 }} title={modeLabel(t.mode)}>{modeEmoji(t.mode)}</span>
+            <div className="activity-info">
+              <div className="activity-name">{from} → {to}</div>
+              <div className="activity-meta">
+                {times && <span>{times}</span>}
+                {t.cost != null && <span>{times ? ' · ' : ''}€{parseFloat(t.cost).toFixed(2)}</span>}
+              </div>
+            </div>
+            <div className="activity-actions">
+              {t.link && (
+                <a href={t.link} target="_blank" rel="noopener noreferrer"
+                  className="btn btn-ghost btn-icon btn-sm" title="Link" onClick={e => e.stopPropagation()}>
+                  <Icon name="link" size={13} color="var(--text-muted)" />
+                </a>
+              )}
+              {t.ticket_path && (
+                <a role="button" tabIndex={0}
+                  className="btn btn-ghost btn-icon btn-sm" title="Biglietto"
+                  onClick={e => { e.stopPropagation(); openAttachment(t.ticket_path).catch(() => alert('Impossibile aprire il biglietto')) }}>
+                  <Icon name="attach" size={13} color="var(--text-muted)" />
+                </a>
+              )}
+              {canEdit && (
+                <>
+                  <button className="btn btn-ghost btn-icon btn-sm" title="Modifica" onClick={() => setModal(t)}>
+                    <Icon name="edit" size={14} color="var(--text-muted)" />
+                  </button>
+                  <button className="btn btn-ghost btn-icon btn-sm" title="Elimina" onClick={() => handleDelete(t)}>
+                    <Icon name="trash" size={14} color="var(--danger)" />
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )
+      })}
+
+      {modal && (
+        <TransportModal
+          tripId={tripId} cities={cities} days={days}
+          transport={modal === 'add' ? null : modal}
+          defaultDayId={dayId}
+          onSaved={onRefresh} onClose={() => setModal(null)}
+        />
+      )}
+      {confirmModal}
+    </div>
+  )
+}
+
 /* ─── DayCard ───────────────────────────────────────────────────────────────── */
-function DayCard({ day, tripId, myRole, onRefresh, wishlist, cities, cityInfo, dayPhotos }) {
+function DayCard({ day, tripId, myRole, onRefresh, wishlist, cities, cityInfo, dayPhotos, dayTransports, days }) {
   const [open, setOpen] = useState(false)
 
   // Build wishlist lookup map for maps links
@@ -738,6 +824,16 @@ function DayCard({ day, tripId, myRole, onRefresh, wishlist, cities, cityInfo, d
             </div>
           )}
 
+          <DayTransportsSection
+            transports={dayTransports || []}
+            canEdit={canEdit}
+            tripId={tripId}
+            dayId={day.id}
+            cities={cities}
+            days={days}
+            onRefresh={onRefresh}
+          />
+
           <DayPhotosSection
             photos={dayPhotos}
             activities={localActivities}
@@ -807,7 +903,7 @@ function DayCard({ day, tripId, myRole, onRefresh, wishlist, cities, cityInfo, d
 }
 
 /* ─── ItineraryTab ──────────────────────────────────────────────────────────── */
-export default function ItineraryTab({ tripId, days, myRole, onRefresh, wishlist, cities, onCitiesRefresh, photos = [] }) {
+export default function ItineraryTab({ tripId, days, myRole, onRefresh, wishlist, cities, onCitiesRefresh, photos = [], transports = [] }) {
   const [showCitiesManager, setShowCitiesManager] = useState(false)
   const canEdit = myRole === 'admin' || myRole === 'editor'
 
@@ -847,9 +943,10 @@ export default function ItineraryTab({ tripId, days, myRole, onRefresh, wishlist
     <div>
       {days.map(day => (
         <DayCard key={day.id} day={day} tripId={tripId} myRole={myRole}
-          onRefresh={onRefresh} wishlist={wishlist} cities={cities}
+          onRefresh={onRefresh} wishlist={wishlist} cities={cities} days={days}
           cityInfo={daysCityInfo[day.id]}
           dayPhotos={photos.filter(p => p.day_id === day.id)}
+          dayTransports={transports.filter(t => t.day_id === day.id)}
         />
       ))}
 

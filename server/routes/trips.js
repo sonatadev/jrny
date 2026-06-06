@@ -335,6 +335,8 @@ router.get('/:id/version', async (req, res) => {
         (SELECT MAX(created_at) FROM packing_items WHERE trip_id=$1),
         (SELECT MAX(created_at) FROM trip_attachments WHERE trip_id=$1),
         (SELECT MAX(created_at) FROM trip_photos WHERE trip_id=$1),
+        (SELECT GREATEST(MAX(created_at), MAX(updated_at)) FROM note_cards WHERE trip_id=$1),
+        (SELECT MAX(created_at) FROM transports WHERE trip_id=$1),
         (SELECT created_at FROM trips WHERE id=$1)
       ) AS v
     `, [req.params.id]);

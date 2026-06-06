@@ -5,6 +5,7 @@ import { it } from 'date-fns/locale'
 import { getPublicTrip } from '../js/api'
 import Icon from '../components/Icon'
 import ParticlesBg from '../components/ParticlesBg'
+import { modeEmoji, modeLabel } from '../components/TransportsTab'
 
 const SLOTS = [
   { key: 'mattina',    label: 'Mattina',    color: '#f59e0b' },
@@ -41,7 +42,14 @@ export default function SharePage() {
     </div>
   )
 
-  const { trip, days, wishlist, participants } = data
+  const { trip, days, wishlist, participants, transports = [] } = data
+
+  const fmtDT = (date, time) => {
+    let out = ''
+    if (date) { try { out = format(parseISO(date), 'd MMM', { locale: it }) } catch { out = date } }
+    if (time) out += (out ? ' ' : '') + time.slice(0, 5)
+    return out
+  }
   const start = parseISO(trip.start_date)
   const end = parseISO(trip.end_date)
   const totalDays = differenceInDays(end, start) + 1
@@ -123,6 +131,35 @@ export default function SharePage() {
                       ))}
                     </div>
                   )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Trasporti */}
+        {transports.length > 0 && (
+          <div style={{ marginBottom: '2rem' }}>
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '.5rem' }}>
+              <Icon name="plane" size={18} color="var(--primary)" /> Trasporti ({transports.length})
+            </h2>
+            {transports.map((tr, i) => {
+              const from = tr.from_place || tr.from_city_name || '—'
+              const to = tr.to_place || tr.to_city_name || '—'
+              const dep = fmtDT(tr.depart_date, tr.depart_time)
+              const arr = fmtDT(tr.arrive_date, tr.arrive_time)
+              return (
+                <div key={i} className="card" style={{ padding: '.75rem 1rem', marginBottom: '.6rem', display: 'flex', alignItems: 'flex-start', gap: '.6rem' }}>
+                  <span style={{ fontSize: '1.3rem', lineHeight: 1 }} title={modeLabel(tr.mode)}>{modeEmoji(tr.mode)}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: '.9rem' }}>{from} <span style={{ color: 'var(--text-muted)' }}>→</span> {to}</div>
+                    {(dep || arr) && (
+                      <div style={{ fontSize: '.78rem', color: 'var(--text-muted)', marginTop: '.15rem' }}>
+                        {dep}{dep && arr ? ' → ' : ''}{arr}
+                      </div>
+                    )}
+                    {tr.carrier && <div style={{ fontSize: '.78rem', color: 'var(--text-light)', marginTop: '.2rem' }}>🏷 {tr.carrier}</div>}
+                  </div>
                 </div>
               )
             })}

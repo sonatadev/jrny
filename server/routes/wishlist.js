@@ -1,5 +1,6 @@
 const router = require('express').Router({ mergeParams: true });
 const { pool } = require('../db/init');
+const { isSafeUrl } = require('../utils/security');
 
 async function checkAccess(tripId, userId, minRole = 'viewer') {
   const res = await pool.query(
@@ -48,6 +49,7 @@ router.post('/', async (req, res) => {
 
   const { name, city, category, notes, maps_link, priority } = req.body;
   if (!name) return res.status(400).json({ error: 'Nome obbligatorio' });
+  if (!isSafeUrl(maps_link)) return res.status(400).json({ error: 'Link mappa non valido' });
 
   try {
     const result = await pool.query(
@@ -147,6 +149,7 @@ router.put('/:placeId', async (req, res) => {
   if (!role) return res.status(403).json({ error: 'Permesso insufficiente' });
 
   const { name, city, category, notes, maps_link, priority, day_id, slot, is_slotted } = req.body;
+  if (!isSafeUrl(maps_link)) return res.status(400).json({ error: 'Link mappa non valido' });
 
   try {
     // Verifica che il posto appartenga al viaggio
