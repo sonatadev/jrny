@@ -2,6 +2,7 @@ const router = require('express').Router();
 const { pool } = require('../db/init');
 const crypto = require('crypto');
 const { sendInviteEmail } = require('../utils/email');
+const { isValidRole, isValidEmail } = require('../utils/security');
 
 // Join via invite link (must be before /:id routes)
 router.post('/join/:token', async (req, res) => {
@@ -76,6 +77,7 @@ router.post('/', async (req, res) => {
     // Gestisci inviti email
     if (invited_emails && Array.isArray(invited_emails)) {
       for (const email of invited_emails) {
+        if (!isValidEmail(email)) continue;
         const userRes = await client.query('SELECT id FROM users WHERE email=$1', [email]);
         if (userRes.rows.length) {
           await client.query(
@@ -183,8 +185,11 @@ router.delete('/:id', async (req, res) => {
 
 // Invita partecipante
 router.post('/:id/invite', async (req, res) => {
-  const { email, role } = req.body;
+  const { email } = req.body;
+  const role = req.body.role || 'editor';
   if (!email) return res.status(400).json({ error: 'Email obbligatoria' });
+  if (!isValidEmail(email)) return res.status(400).json({ error: 'Email non valida' });
+  if (!isValidRole(role)) return res.status(400).json({ error: 'Ruolo non valido' });
 
   try {
     const perm = await pool.query(
@@ -193,6 +198,9 @@ router.post('/:id/invite', async (req, res) => {
     );
     if (!perm.rows.length || perm.rows[0].role === 'viewer')
       return res.status(403).json({ error: 'Permesso insufficiente' });
+    // Solo un admin può assegnare il ruolo admin (evita escalation da parte di un editor)
+    if (role === 'admin' && perm.rows[0].role !== 'admin')
+      return res.status(403).json({ error: 'Solo un admin può assegnare il ruolo admin' });
 
     const tripRes = await pool.query('SELECT title FROM trips WHERE id=$1', [req.params.id]);
     const tripTitle = tripRes.rows[0]?.title || 'il viaggio';
@@ -225,6 +233,7 @@ router.post('/:id/invite', async (req, res) => {
 // Aggiorna ruolo partecipante
 router.put('/:id/participants/:userId', async (req, res) => {
   const { role } = req.body;
+  if (!isValidRole(role)) return res.status(400).json({ error: 'Ruolo non valido' });
   try {
     const perm = await pool.query(
       'SELECT role FROM trip_participants WHERE trip_id=$1 AND user_id=$2',
@@ -232,6 +241,22 @@ router.put('/:id/participants/:userId', async (req, res) => {
     );
     if (!perm.rows.length || perm.rows[0].role !== 'admin')
       return res.status(403).json({ error: 'Solo l\'admin può cambiare ruoli' });
+
+    // Impedisci di rimuovere l'ultimo admin del viaggio (lascerebbe il viaggio senza admin)
+    if (role !== 'admin') {
+      const target = await pool.query(
+        'SELECT role FROM trip_participants WHERE trip_id=$1 AND user_id=$2',
+        [req.params.id, req.params.userId]
+      );
+      if (target.rows.length && target.rows[0].role === 'admin') {
+        const admins = await pool.query(
+          "SELECT COUNT(*) FROM trip_participants WHERE trip_id=$1 AND role='admin'",
+          [req.params.id]
+        );
+        if (parseInt(admins.rows[0].count) <= 1)
+          return res.status(400).json({ error: 'Non puoi rimuovere l\'ultimo admin del viaggio' });
+      }
+    }
 
     await pool.query(
       'UPDATE trip_participants SET role=$1 WHERE trip_id=$2 AND user_id=$3',

@@ -5,6 +5,26 @@ const http = require('http');
 
 const MAX_REDIRECTS = 10;
 
+// Blocca host interni/privati per mitigare SSRF tramite redirect (es. metadata cloud 169.254.169.254)
+function isBlockedHost(hostname) {
+  if (!hostname) return true;
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, ''); // rimuove parentesi IPv6
+  if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.internal') || h.endsWith('.local')) return true;
+  if (h === '::1' || h === '0.0.0.0') return true;
+  // IPv4 letterale in range privati/loopback/link-local
+  const m = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (m) {
+    const [a, b] = [parseInt(m[1]), parseInt(m[2])];
+    if (a === 10 || a === 127 || a === 0) return true;
+    if (a === 169 && b === 254) return true;           // link-local / metadata
+    if (a === 172 && b >= 16 && b <= 31) return true;  // 172.16/12
+    if (a === 192 && b === 168) return true;           // 192.168/16
+  }
+  // IPv6 private/loopback letterale
+  if (/^(fc|fd|fe80)/.test(h)) return true;
+  return false;
+}
+
 // ── Google Places API photo helpers ──────────────────────────────────────────
 
 function httpsGet(url) {
@@ -125,6 +145,11 @@ function fetchPage(urlStr, redirects = 0, cookies = {}, firstMapsUrl = null) {
     let parsed;
     try { parsed = new URL(urlStr); }
     catch { return reject(new Error('URL non valido')); }
+
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:')
+      return reject(new Error('Protocollo non consentito'));
+    if (isBlockedHost(parsed.hostname))
+      return reject(new Error('Host non consentito'));
 
     const proto = parsed.protocol === 'https:' ? https : http;
     const cookieStr = Object.entries(cookies).map(([k, v]) => `${k}=${v}`).join('; ');

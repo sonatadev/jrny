@@ -7,15 +7,31 @@ const fs = require('fs');
 const ATTACH_DIR = path.join(__dirname, '../uploads/attachments');
 if (!fs.existsSync(ATTACH_DIR)) fs.mkdirSync(ATTACH_DIR, { recursive: true });
 
+// Estensioni eseguibili/attive che non devono mai essere accettate come allegato
+const BLOCKED_EXT = new Set([
+  '.html', '.htm', '.xhtml', '.shtml', '.svg', '.js', '.mjs', '.php', '.phtml',
+  '.exe', '.bat', '.cmd', '.sh', '.com', '.scr', '.msi', '.jar', '.htaccess',
+]);
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, ATTACH_DIR),
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
+    // Normalizza l'estensione e neutralizza quelle pericolose
+    let ext = path.extname(file.originalname).toLowerCase();
+    if (BLOCKED_EXT.has(ext)) ext = '.bin';
     cb(null, `att-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
   },
 });
 
-const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
+const upload = multer({
+  storage,
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (BLOCKED_EXT.has(ext)) return cb(new Error('Tipo di file non consentito'));
+    cb(null, true);
+  },
+});
 
 async function checkAccess(tripId, userId, minRole = 'viewer') {
   const res = await pool.query(
@@ -82,8 +98,11 @@ router.delete('/:attId', async (req, res) => {
     );
     if (!att.rows.length) return res.status(404).json({ error: 'File non trovato' });
 
-    const fullPath = path.join(__dirname, '..', att.rows[0].file_path);
-    try { fs.unlinkSync(fullPath); } catch {}
+    // Risolvi il path e verifica che resti dentro la cartella allegati (anti path-traversal)
+    const fullPath = path.resolve(__dirname, '..', '.' + att.rows[0].file_path);
+    if (fullPath.startsWith(ATTACH_DIR + path.sep)) {
+      try { fs.unlinkSync(fullPath); } catch {}
+    }
 
     await pool.query('DELETE FROM trip_attachments WHERE id=$1', [req.params.attId]);
     res.json({ message: 'File eliminato' });

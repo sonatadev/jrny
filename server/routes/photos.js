@@ -108,8 +108,11 @@ router.delete('/:photoId', async (req, res) => {
       return res.status(403).json({ error: 'Puoi eliminare solo le tue foto' });
     }
 
-    const fullPath = path.join(__dirname, '..', photo.rows[0].url);
-    try { fs.unlinkSync(fullPath); } catch {}
+    // Risolvi il path e verifica che resti dentro la cartella foto (anti path-traversal)
+    const fullPath = path.resolve(__dirname, '..', '.' + photo.rows[0].url);
+    if (fullPath.startsWith(PHOTOS_DIR + path.sep)) {
+      try { fs.unlinkSync(fullPath); } catch {}
+    }
 
     await pool.query('DELETE FROM trip_photos WHERE id=$1', [req.params.photoId]);
     res.json({ message: 'Foto eliminata' });

@@ -13,6 +13,12 @@ async function checkAccess(tripId, userId, minRole = 'viewer') {
   return role;
 }
 
+// Verifica che il giorno appartenga al viaggio (previene IDOR su dayId di altri viaggi)
+async function dayBelongsToTrip(dayId, tripId) {
+  const r = await pool.query('SELECT id FROM trip_days WHERE id=$1 AND trip_id=$2', [dayId, tripId]);
+  return r.rows.length > 0;
+}
+
 // GET /api/trips/:id/days
 router.get('/', async (req, res) => {
   const role = await checkAccess(req.params.id, req.user.id);
@@ -125,6 +131,13 @@ router.patch('/:dayId/activities/reorder', async (req, res) => {
   if (!Array.isArray(order)) return res.status(400).json({ error: 'order deve essere un array' });
 
   try {
+    // Verifica che il giorno appartenga a questo viaggio (evita IDOR su dayId di altri viaggi)
+    const dayCheck = await pool.query(
+      'SELECT id FROM trip_days WHERE id=$1 AND trip_id=$2',
+      [req.params.dayId, req.params.id]
+    );
+    if (!dayCheck.rows.length) return res.status(404).json({ error: 'Giorno non trovato' });
+
     for (const { id, sort_order } of order) {
       await pool.query(
         'UPDATE day_activities SET sort_order=$1 WHERE id=$2 AND day_id=$3',
@@ -143,6 +156,8 @@ router.patch('/:dayId/activities/:actId/complete', async (req, res) => {
   const role = await checkAccess(req.params.id, req.user.id);
   if (!role) return res.status(403).json({ error: 'Accesso negato' });
   try {
+    if (!await dayBelongsToTrip(req.params.dayId, req.params.id))
+      return res.status(404).json({ error: 'Giorno non trovato' });
     const result = await pool.query(
       'UPDATE day_activities SET completed=$1 WHERE id=$2 AND day_id=$3 RETURNING *',
       [!!req.body.completed, req.params.actId, req.params.dayId]
@@ -162,6 +177,8 @@ router.put('/:dayId/activities/:actId', async (req, res) => {
 
   const { slot, name, time, duration, category, notes } = req.body;
   try {
+    if (!await dayBelongsToTrip(req.params.dayId, req.params.id))
+      return res.status(404).json({ error: 'Giorno non trovato' });
     const result = await pool.query(
       `UPDATE day_activities SET
         slot=COALESCE($1,slot), name=COALESCE($2,name), time=COALESCE($3,time),
@@ -183,8 +200,10 @@ router.delete('/:dayId/activities/:actId', async (req, res) => {
   if (!role) return res.status(403).json({ error: 'Permesso insufficiente' });
 
   try {
+    if (!await dayBelongsToTrip(req.params.dayId, req.params.id))
+      return res.status(404).json({ error: 'Giorno non trovato' });
     // Se l'attività era da wishlist, de-slotta il posto
-    const act = await pool.query('SELECT wishlist_place_id FROM day_activities WHERE id=$1', [req.params.actId]);
+    const act = await pool.query('SELECT wishlist_place_id FROM day_activities WHERE id=$1 AND day_id=$2', [req.params.actId, req.params.dayId]);
     if (act.rows.length && act.rows[0].wishlist_place_id) {
       await pool.query(
         'UPDATE wishlist_places SET is_slotted=false, day_id=NULL, slot=NULL WHERE id=$1',

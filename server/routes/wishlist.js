@@ -207,6 +207,13 @@ router.post('/:placeId/vote', async (req, res) => {
   const role = await checkAccess(req.params.id, req.user.id);
   if (!role) return res.status(403).json({ error: 'Accesso negato' });
   try {
+    // Verifica che il posto appartenga a questo viaggio (evita IDOR su placeId di altri viaggi)
+    const placeCheck = await pool.query(
+      'SELECT id FROM wishlist_places WHERE id=$1 AND trip_id=$2',
+      [req.params.placeId, req.params.id]
+    );
+    if (!placeCheck.rows.length) return res.status(404).json({ error: 'Posto non trovato' });
+
     const existing = await pool.query(
       'SELECT 1 FROM wishlist_votes WHERE place_id=$1 AND user_id=$2',
       [req.params.placeId, req.user.id]

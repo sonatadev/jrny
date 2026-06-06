@@ -2,11 +2,17 @@ const router = require('express').Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { pool } = require('../db/init');
+const { isValidEmail, rateLimit } = require('../utils/security');
 
-router.post('/register', async (req, res) => {
+// Limita i tentativi di autenticazione per mitigare brute-force e abusi
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
+
+router.post('/register', authLimiter, async (req, res) => {
   const { name, email, password } = req.body;
   if (!name || !email || !password)
     return res.status(400).json({ error: 'Nome, email e password obbligatori' });
+  if (!isValidEmail(email))
+    return res.status(400).json({ error: 'Email non valida' });
   if (password.length < 6)
     return res.status(400).json({ error: 'Password minimo 6 caratteri' });
 
@@ -41,7 +47,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password)
     return res.status(400).json({ error: 'Email e password obbligatori' });

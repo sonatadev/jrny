@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer')
+const { escapeHtml } = require('./security')
 
 let _transporter = null
 
@@ -11,7 +12,8 @@ function getTransporter() {
     port: parseInt(SMTP_PORT || '587'),
     secure: parseInt(SMTP_PORT || '587') === 465,
     auth: { user: SMTP_USER, pass: SMTP_PASS },
-    tls: { rejectUnauthorized: false },
+    // Verifica il certificato TLS del server SMTP; disattivabile solo esplicitamente via env
+    tls: { rejectUnauthorized: process.env.SMTP_TLS_INSECURE !== 'true' },
   })
   return _transporter
 }
@@ -34,6 +36,12 @@ async function sendInviteEmail({ to, inviterName, tripTitle, appUrl, isNewUser }
     ? `Registrati su jrny per unirti al gruppo e iniziare a pianificare insieme.`
     : `Accedi a jrny per vedere l'itinerario, la wishlist e il budget del viaggio.`
 
+  // Escape di tutti i valori dinamici interpolati nell'HTML (anti-XSS via nome/titolo)
+  const eInviter = escapeHtml(inviterName)
+  const eTitle = escapeHtml(tripTitle)
+  const eActionUrl = escapeHtml(actionUrl)
+  const eTo = escapeHtml(to)
+
   const html = `<!DOCTYPE html>
 <html lang="it">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -55,8 +63,8 @@ async function sendInviteEmail({ to, inviterName, tripTitle, appUrl, isNewUser }
           <td style="padding:36px 40px">
             <p style="margin:0 0 8px;font-size:15px;color:#8c7255">Hai ricevuto un invito</p>
             <h1 style="margin:0 0 20px;font-size:22px;color:#3d2b1f;font-weight:700;line-height:1.3">
-              ${inviterName} ti invita a<br>
-              <span style="color:#c26b4a">"${tripTitle}"</span>
+              ${eInviter} ti invita a<br>
+              <span style="color:#c26b4a">"${eTitle}"</span>
             </h1>
             <p style="margin:0 0 28px;font-size:15px;color:#5a3d2b;line-height:1.6">
               ${bodyLine}
@@ -66,7 +74,7 @@ async function sendInviteEmail({ to, inviterName, tripTitle, appUrl, isNewUser }
             <table cellpadding="0" cellspacing="0" style="margin:0 0 28px">
               <tr>
                 <td style="background:#c26b4a;border-radius:10px">
-                  <a href="${actionUrl}"
+                  <a href="${eActionUrl}"
                      style="display:inline-block;padding:14px 32px;color:#fff;font-size:15px;font-weight:700;text-decoration:none;letter-spacing:.2px">
                     ${actionLabel} →
                   </a>
@@ -76,7 +84,7 @@ async function sendInviteEmail({ to, inviterName, tripTitle, appUrl, isNewUser }
 
             <p style="margin:0;font-size:13px;color:#b89d82;line-height:1.5">
               Se il pulsante non funziona, copia e incolla questo link nel browser:<br>
-              <span style="color:#c26b4a">${actionUrl}</span>
+              <span style="color:#c26b4a">${eActionUrl}</span>
             </p>
           </td>
         </tr>
@@ -85,7 +93,7 @@ async function sendInviteEmail({ to, inviterName, tripTitle, appUrl, isNewUser }
         <tr>
           <td style="background:#fdf6ec;padding:20px 40px;border-top:1px solid #e8d9c5">
             <p style="margin:0;font-size:12px;color:#b89d82;text-align:center;line-height:1.6">
-              Hai ricevuto questa email perché <strong>${to}</strong> è stato invitato su jrny.<br>
+              Hai ricevuto questa email perché <strong>${eTo}</strong> è stato invitato su jrny.<br>
               Se non ti aspettavi questo invito, puoi ignorare questa email.
             </p>
           </td>
