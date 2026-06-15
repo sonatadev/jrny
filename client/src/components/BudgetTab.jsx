@@ -10,7 +10,7 @@ const CATEGORIES = ['vitto', 'alloggio', 'trasporti', 'attività', 'shopping', '
 const CAT_COLOR = { vitto: '#f59e0b', alloggio: 'var(--primary)', trasporti: '#6b7280', 'attività': '#8b5cf6', shopping: '#ec4899', altro: 'var(--text-muted)' }
 const CAT_SHORT = { vitto: 'Vit', alloggio: 'All', trasporti: 'Tra', 'attività': 'Att', shopping: 'Shp', altro: 'Alt' }
 
-const EMPTY_FORM = { amount: '', category: 'vitto', description: '', paid_by_name: '', entry_date: '' }
+const EMPTY_FORM = { amount: '', category: 'vitto', description: '', paid_by_name: '', entry_date: '', place_id: '' }
 
 function calculateSplit(byParticipant, participants) {
   if (!participants || participants.length === 0) return null
@@ -49,7 +49,7 @@ function calculateSplit(byParticipant, participants) {
   return { share, balances, transactions }
 }
 
-export default function BudgetTab({ tripId, budget, participants, myRole, onRefresh }) {
+export default function BudgetTab({ tripId, budget, participants, wishlist = [], myRole, onRefresh }) {
   const [addModal, setAddModal] = useState(false)
   const [editEntry, setEditEntry] = useState(null)
   const [budgetModal, setBudgetModal] = useState(false)
@@ -64,6 +64,11 @@ export default function BudgetTab({ tripId, budget, participants, myRole, onRefr
   if (!budget) return <div className="page-loading"><div className="spinner" /></div>
 
   const { total_budget, total_spent, remaining, by_category, by_participant, entries } = budget
+
+  const placeOptions = [
+    { value: '', label: '— Nessuna meta —' },
+    ...wishlist.map(p => ({ value: String(p.id), label: p.name })),
+  ]
   const pct = total_budget > 0 ? Math.min(100, (total_spent / total_budget) * 100) : 0
 
   function openEdit(e) {
@@ -73,6 +78,7 @@ export default function BudgetTab({ tripId, budget, participants, myRole, onRefr
       description: e.description || '',
       paid_by_name: e.paid_by_user_name || e.paid_by_name || '',
       entry_date: e.entry_date || '',
+      place_id: e.place_id ? String(e.place_id) : '',
     })
     setEditEntry(e)
   }
@@ -280,6 +286,11 @@ export default function BudgetTab({ tripId, budget, participants, myRole, onRefr
                   {e.entry_date} · Pagato da: {e.paid_by_user_name || e.paid_by_name || 'N/D'}
                   {' · '}{e.category}
                 </div>
+                {e.place_name && (
+                  <div className="expense-meta" style={{ display: 'flex', alignItems: 'center', gap: '.25rem', color: 'var(--primary)' }}>
+                    <Icon name="pin" size={12} color="var(--primary)" /> {e.place_name}
+                  </div>
+                )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem' }}>
                 <div className="expense-amount">€{parseFloat(e.amount).toFixed(2)}</div>
@@ -310,7 +321,7 @@ export default function BudgetTab({ tripId, budget, participants, myRole, onRefr
             <button className="btn btn-primary" onClick={saveExpense} disabled={saving || !form.amount}>{saving ? 'Salvo...' : 'Aggiungi'}</button>
           </>}
         >
-          <ExpenseForm form={form} setForm={setForm} />
+          <ExpenseForm form={form} setForm={setForm} placeOptions={placeOptions} participants={participants} />
         </Modal>
       )}
 
@@ -322,7 +333,7 @@ export default function BudgetTab({ tripId, budget, participants, myRole, onRefr
             <button className="btn btn-primary" onClick={saveEditExpense} disabled={saving || !editForm.amount}>{saving ? 'Salvo...' : 'Salva'}</button>
           </>}
         >
-          <ExpenseForm form={editForm} setForm={setEditForm} />
+          <ExpenseForm form={editForm} setForm={setEditForm} placeOptions={placeOptions} participants={participants} />
         </Modal>
       )}
 
@@ -345,7 +356,12 @@ export default function BudgetTab({ tripId, budget, participants, myRole, onRefr
   )
 }
 
-function ExpenseForm({ form, setForm }) {
+function ExpenseForm({ form, setForm, placeOptions = [], participants = [] }) {
+  const hasPlaces = placeOptions.length > 1
+  const participantOpts = [
+    { value: '', label: '— Seleziona —' },
+    ...participants.map(p => ({ value: p.name, label: p.name })),
+  ]
   return (
     <>
       <div className="form-row">
@@ -365,10 +381,29 @@ function ExpenseForm({ form, setForm }) {
         <input className="form-control" placeholder="Es. Cena al ristorante"
           value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
       </div>
+      {hasPlaces && (
+        <div className="form-group"><label className="form-label">Meta collegata (opzionale)</label>
+          <CustomSelect
+            value={form.place_id || ''}
+            onChange={v => setForm(f => ({ ...f, place_id: v }))}
+            options={placeOptions}
+            placeholder="— Nessuna meta —"
+          />
+        </div>
+      )}
       <div className="form-row">
         <div className="form-group"><label className="form-label">Chi ha pagato</label>
-          <input className="form-control" placeholder="Nome partecipante"
-            value={form.paid_by_name} onChange={e => setForm(f => ({ ...f, paid_by_name: e.target.value }))} />
+          {participants.length > 0 ? (
+            <CustomSelect
+              value={form.paid_by_name}
+              onChange={v => setForm(f => ({ ...f, paid_by_name: v }))}
+              options={participantOpts}
+              placeholder="— Seleziona —"
+            />
+          ) : (
+            <input className="form-control" placeholder="Nome partecipante"
+              value={form.paid_by_name} onChange={e => setForm(f => ({ ...f, paid_by_name: e.target.value }))} />
+          )}
         </div>
         <div className="form-group"><label className="form-label">Data</label>
           <DatePicker

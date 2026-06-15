@@ -1,5 +1,13 @@
 'use strict';
 
+const crypto = require('crypto');
+
+// Token casuale crittograficamente sicuro (hex) per i nomi file degli upload.
+// Sostituisce Math.random() (predicibile) → i filename non sono indovinabili.
+function randomFileToken(bytes = 16) {
+  return crypto.randomBytes(bytes).toString('hex');
+}
+
 // Ruoli validi per i partecipanti a un viaggio
 const VALID_ROLES = ['admin', 'editor', 'viewer'];
 
@@ -81,4 +89,4 @@ function rateLimit({ windowMs = 15 * 60 * 1000, max = 10, message = 'Troppe rich
   };
 }
 
-module.exports = { VALID_ROLES, isValidRole, isValidEmail, isSafeUrl, parseNumber, escapeHtml, rateLimit };
+module.exports = { VALID_ROLES, isValidRole, isValidEmail, isSafeUrl, parseNumber, escapeHtml, rateLimit, randomFileToken };

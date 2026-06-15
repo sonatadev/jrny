@@ -8,7 +8,7 @@ import { Placeholder } from '@tiptap/extensions'
 import Layout from '../components/Layout'
 import Icon from '../components/Icon'
 import CustomSelect from '../components/CustomSelect'
-import { getNote, getTrip, getCities, updateNote, uploadImage } from '../js/api'
+import { getNote, getNotes, getTrip, getCities, updateNote, uploadImage } from '../js/api'
 
 const NOTE_PALETTE = ['#f59e0b', '#c26b4a', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899', '#ef4444', '#6b7280']
 
@@ -66,6 +66,7 @@ export default function NotePage() {
 
   const [meta, setMeta] = useState(null)   // { title, scope, city_id, participant_user_id, color }
   const [cities, setCities] = useState([])
+  const [catSuggestions, setCatSuggestions] = useState([])
   const [participants, setParticipants] = useState([])
   const [role, setRole] = useState(null)
   const [loadErr, setLoadErr] = useState('')
@@ -130,6 +131,7 @@ export default function NotePage() {
         body: editorRef.current.getHTML(),
         scope: m.scope,
         color: m.color,
+        category: m.category || null,
         city_id: m.scope === 'city' ? m.city_id : null,
         participant_user_id: m.scope === 'participant' ? m.participant_user_id : null,
       })
@@ -158,12 +160,15 @@ export default function NotePage() {
   // Load ------------------------------------------------------------------------
   useEffect(() => {
     let alive = true
-    Promise.all([getNote(id, noteId), getTrip(id), getCities(id)])
-      .then(([n, t, c]) => {
+    Promise.all([getNote(id, noteId), getTrip(id), getCities(id), getNotes(id)])
+      .then(([n, t, c, all]) => {
         if (!alive) return
+        // Categorie già usate nel viaggio → suggerimenti riutilizzabili
+        setCatSuggestions([...new Set((all.data || []).map(x => x.category).filter(Boolean))].sort((a, b) => a.localeCompare(b)))
         const m = {
           title: n.data.title || '',
           scope: n.data.scope || 'general',
+          category: n.data.category || '',
           city_id: n.data.city_id || '',
           participant_user_id: n.data.participant_user_id || '',
           color: n.data.color || NOTE_PALETTE[0],
@@ -205,7 +210,7 @@ export default function NotePage() {
 
   if (loadErr) {
     return (
-      <Layout title="Nota" backTo={`/trips/${id}`}>
+      <Layout title="Nota" backTo={`/trips/${id}?tab=note`}>
         <div className="empty-state"><div>{loadErr}</div></div>
       </Layout>
     )
@@ -214,7 +219,7 @@ export default function NotePage() {
   const statusText = status === 'saving' ? 'Salvataggio…' : status === 'saved' ? 'Salvato' : ''
 
   return (
-    <Layout title="Nota" backTo={`/trips/${id}`}>
+    <Layout title="Nota" backTo={`/trips/${id}?tab=note`}>
       <div className="note-page">
         {!meta ? (
           <div className="page-loading"><div className="spinner" /></div>
@@ -259,6 +264,16 @@ export default function NotePage() {
                     </div>
                   )}
 
+                  <div className="form-group" style={{ marginTop: '.6rem', marginBottom: 0 }}>
+                    <input className="form-control" list="note-cat-suggestions" maxLength={50}
+                      placeholder="Categoria — es. Attrazioni, Gite, Negozi…"
+                      value={meta.category || ''}
+                      onChange={e => patchMeta({ category: e.target.value })} />
+                    <datalist id="note-cat-suggestions">
+                      {catSuggestions.map(c => <option key={c} value={c} />)}
+                    </datalist>
+                  </div>
+
                   <div className="city-color-dots" style={{ marginTop: '.7rem' }}>
                     {NOTE_PALETTE.map(c => (
                       <button key={c} type="button"
@@ -282,8 +297,8 @@ export default function NotePage() {
 
             <div className="note-page-status">
               {statusText && <span>{statusText}</span>}
-              {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => { clearTimeout(saveTimer.current); doSave().then(() => navigate(`/trips/${id}`)) }}>Fatto</button>}
-              {!canEdit && <button className="btn btn-secondary btn-sm" onClick={() => navigate(`/trips/${id}`)}>Indietro</button>}
+              {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => { clearTimeout(saveTimer.current); doSave().then(() => navigate(`/trips/${id}?tab=note`)) }}>Fatto</button>}
+              {!canEdit && <button className="btn btn-secondary btn-sm" onClick={() => navigate(`/trips/${id}?tab=note`)}>Indietro</button>}
             </div>
           </>
         )}

@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import Layout from '../components/Layout'
 import ParticlesBg from '../components/ParticlesBg'
 import Icon from '../components/Icon'
@@ -11,12 +11,13 @@ import CitiesTab from '../components/CitiesTab'
 import BudgetTab from '../components/BudgetTab'
 import PianoTab from '../components/PianoTab'
 import PackingTab from '../components/PackingTab'
-import MapTab from '../components/MapTab'
+// Leaflet (~150kB) is only needed on the Mappa tab, so load it on demand.
+const MapTab = lazy(() => import('../components/MapTab'))
 import WeatherTab from '../components/WeatherTab'
 import GalleryTab from '../components/GalleryTab'
 import NotesTab from '../components/NotesTab'
 import TransportsTab from '../components/TransportsTab'
-import { getTrip, getDays, getWishlist, getBudget, deleteTrip, getCities, getTripVersion, getTripPhotos, getNotes, getNoteImages, getTransports } from '../js/api'
+import { getTrip, getDays, getWishlist, getBudget, deleteTrip, getCities, getTripVersion, getTripPhotos, getNotes, getNoteImages, getChecklist, getTransports } from '../js/api'
 import { format, parseISO, differenceInDays } from 'date-fns'
 import { it } from 'date-fns/locale'
 
@@ -45,12 +46,18 @@ const SUBTABS = {
 export default function TripPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const [tab, setTab] = useState('info')
+  // Il tab attivo vive nell'URL (?tab=…) così tornando indietro da una sotto-pagina
+  // (es. l'editor nota) si rientra nello stesso tab invece che su "info".
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tab = searchParams.get('tab') || 'info'
   const [subView, setSubView] = useState(null)
   const [moreOpen, setMoreOpen] = useState(false)
 
   // Cambia tab azzerando la sotto-vista (torna al primo sub di default)
-  const selectTab = (key) => { setTab(key); setSubView(null) }
+  const selectTab = (key) => {
+    setSearchParams(key === 'info' ? {} : { tab: key }, { replace: true })
+    setSubView(null)
+  }
   const [trip, setTrip] = useState(null)
   const [days, setDays] = useState([])
   const [wishlist, setWishlist] = useState([])
@@ -59,6 +66,7 @@ export default function TripPage() {
   const [photos, setPhotos] = useState([])
   const [notes, setNotes] = useState([])
   const [noteImages, setNoteImages] = useState([])
+  const [checklist, setChecklist] = useState([])
   const [transports, setTransports] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -67,8 +75,8 @@ export default function TripPage() {
 
   const loadAll = useCallback(async () => {
     try {
-      const [tripRes, daysRes, wlRes, budRes, citiesRes, photosRes, notesRes, noteImagesRes, transportsRes] = await Promise.all([
-        getTrip(id), getDays(id), getWishlist(id), getBudget(id), getCities(id), getTripPhotos(id), getNotes(id), getNoteImages(id), getTransports(id)
+      const [tripRes, daysRes, wlRes, budRes, citiesRes, photosRes, notesRes, noteImagesRes, checklistRes, transportsRes] = await Promise.all([
+        getTrip(id), getDays(id), getWishlist(id), getBudget(id), getCities(id), getTripPhotos(id), getNotes(id), getNoteImages(id), getChecklist(id), getTransports(id)
       ])
       setTrip(tripRes.data)
       setDays(daysRes.data)
@@ -78,6 +86,7 @@ export default function TripPage() {
       setPhotos(photosRes.data)
       setNotes(notesRes.data)
       setNoteImages(noteImagesRes.data)
+      setChecklist(checklistRes.data)
       setTransports(transportsRes.data)
     } catch (err) {
       setError(err.response?.data?.error || 'Errore nel caricamento del viaggio')
@@ -220,29 +229,35 @@ export default function TripPage() {
           )}
 
           {tab === 'piano' && (
-            <PianoTab tripId={id} wishlist={wishlist} days={days} myRole={myRole} onRefresh={loadAll} />
+            <PianoTab tripId={id} wishlist={wishlist} days={days} myRole={myRole} onRefresh={loadAll} cities={cities} />
           )}
           {tab === 'mete' && (
             <WishlistTab tripId={id} wishlist={wishlist} days={days} myRole={myRole}
               onRefresh={loadAll} cities={cities} />
           )}
           {tab === 'budget' && (
-            <BudgetTab tripId={id} budget={budget} participants={trip.participants} myRole={myRole} onRefresh={loadAll} />
+            <BudgetTab tripId={id} budget={budget} participants={trip.participants} wishlist={wishlist} myRole={myRole} onRefresh={loadAll} />
           )}
           {tab === 'packing' && (
             <PackingTab tripId={id} myRole={myRole} participants={trip.participants} />
           )}
           {tab === 'trasporti' && (
             <TransportsTab tripId={id} transports={transports} cities={cities} days={days}
-              myRole={myRole} onRefresh={loadAll} />
+              myRole={myRole} onRefresh={loadAll} destination={trip.destination} />
           )}
           {tab === 'note' && (
-            <NotesTab tripId={id} notes={notes} noteImages={noteImages} cities={cities} participants={trip.participants}
+            <NotesTab tripId={id} notes={notes} noteImages={noteImages} checklist={checklist} cities={cities} participants={trip.participants}
               myRole={myRole} onRefresh={loadAll} />
           )}
 
           {tab === 'mappa' && sub === 'mappa' && (
-            <MapTab tripId={id} cities={cities} wishlist={wishlist} trip={trip} />
+            <Suspense fallback={
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
+                <div className="spinner" style={{ width: 28, height: 28 }} />
+              </div>
+            }>
+              <MapTab tripId={id} cities={cities} wishlist={wishlist} trip={trip} />
+            </Suspense>
           )}
           {tab === 'mappa' && sub === 'citta' && (
             <CitiesTab tripId={id} cities={cities} wishlist={wishlist} myRole={myRole} onRefresh={loadAll} />

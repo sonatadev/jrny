@@ -6,6 +6,12 @@ import Icon from './Icon'
 import CustomSelect from './CustomSelect'
 import { useConfirm } from './ConfirmModal'
 import { addTransport, updateTransport, deleteTransport, uploadTransportTicket, deleteTransportTicket, openAttachment } from '../js/api'
+import { cityLabel } from '../js/cityLabel'
+import { directionsUrl, modeTravel, providersFor } from '../js/directions'
+
+// Endpoint per un link indicazioni: il nome città mostra "Tokyo" invece di un
+// indirizzo specifico (Google geocodifica le coordinate al punto più vicino).
+const cityEndpoint = (c) => cityLabel(c)
 
 export const MODES = [
   { key: 'volo',      label: 'Volo',      emoji: '✈️' },
@@ -32,7 +38,7 @@ function fmtDateTime(date, time) {
 }
 
 /* ─── TransportModal (add + edit), riusabile dall'itinerario ─────────────────── */
-export function TransportModal({ tripId, cities = [], days = [], transport, defaultDayId, onSaved, onClose }) {
+export function TransportModal({ tripId, cities = [], days = [], transport, defaultDayId, defaults = {}, onSaved, onClose }) {
   const isEdit = !!transport
   const [form, setForm] = useState(
     isEdit
@@ -59,6 +65,7 @@ export function TransportModal({ tripId, cities = [], days = [], transport, defa
           depart_date: '', depart_time: '', arrive_date: '', arrive_time: '',
           cost: '', carrier: '', booking_ref: '', seat: '', link: '', notes: '',
           day_id: defaultDayId || '',
+          ...defaults,
         }
   )
   const [saving, setSaving] = useState(false)
@@ -83,7 +90,8 @@ export function TransportModal({ tripId, cities = [], days = [], transport, defa
   }
 
   async function save() {
-    if (!form.from_place.trim() && !form.to_place.trim()) return
+    // Servono almeno un estremo: un luogo digitato oppure una città collegata.
+    if (!form.from_place.trim() && !form.to_place.trim() && !form.from_city_id && !form.to_city_id) return
     setSaving(true)
     try {
       const payload = {
@@ -109,7 +117,7 @@ export function TransportModal({ tripId, cities = [], days = [], transport, defa
     } catch { } finally { setSaving(false) }
   }
 
-  const cityOpts = [{ value: '', label: '— Nessuna —' }, ...cities.map(c => ({ value: String(c.id), label: c.name }))]
+  const cityOpts = [{ value: '', label: '— Nessuna —' }, ...cities.map(c => ({ value: String(c.id), label: cityLabel(c) }))]
   const dayOpts = [
     { value: '', label: '— Non collegato —' },
     ...days.map(d => ({ value: String(d.id), label: format(parseISO(d.date), 'EEE d MMM', { locale: it }) })),
@@ -254,11 +262,15 @@ export function TransportModal({ tripId, cities = [], days = [], transport, defa
 }
 
 /* ─── TransportCard ──────────────────────────────────────────────────────────── */
-function TransportCard({ t, canEdit, onEdit, onDelete }) {
+function TransportCard({ t, cities = [], canEdit, onEdit, onDelete }) {
   const from = t.from_place || t.from_city_name || '—'
   const to = t.to_place || t.to_city_name || '—'
   const dep = fmtDateTime(t.depart_date, t.depart_time)
   const arr = fmtDateTime(t.arrive_date, t.arrive_time)
+  // Build a directions link: free-typed place wins, else the linked city (coords).
+  const fromPt = t.from_place || cityEndpoint(cities.find(c => c.id === t.from_city_id))
+  const toPt = t.to_place || cityEndpoint(cities.find(c => c.id === t.to_city_id))
+  const canRoute = fromPt && toPt
   return (
     <div className="card" style={{ padding: '.75rem 1rem', marginBottom: '.6rem' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '.6rem' }}>
@@ -287,6 +299,12 @@ function TransportCard({ t, canEdit, onEdit, onDelete }) {
                 🎫 Biglietto
               </a>
             )}
+            {canRoute && (
+              <a href={directionsUrl(fromPt, toPt, modeTravel(t.mode))} target="_blank" rel="noopener noreferrer"
+                style={{ color: 'var(--primary)', fontWeight: 600 }}>
+                🧭 Indicazioni
+              </a>
+            )}
           </div>
           {t.notes && <div style={{ fontSize: '.78rem', color: 'var(--text-muted)', marginTop: '.3rem', fontStyle: 'italic' }}>{t.notes}</div>}
         </div>
@@ -305,9 +323,85 @@ function TransportCard({ t, canEdit, onEdit, onDelete }) {
   )
 }
 
+/* ─── DirectionsPlanner — "come spostarsi" tra città (deep-link a Google Maps) ── */
+// Mezzo del planner → modalità trasporto dell'app (per "Aggiungi come spostamento").
+const PLAN_TO_MODE = { transit: 'treno', driving: 'auto', walking: 'apiedi' }
+
+function DirectionsPlanner({ cities, destination = '', onAdd }) {
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [mode, setMode] = useState('transit')
+
+  const cityOpts = cities.map(c => ({ value: String(c.id), label: cityLabel(c) }))
+  const fromCity = cities.find(c => String(c.id) === from)
+  const toCity = cities.find(c => String(c.id) === to)
+  const ready = fromCity && toCity && from !== to
+  const providers = providersFor(destination)
+
+  // Punto per i provider: coordinate (più precise) + nome città.
+  const point = (c) => ({ name: cityLabel(c), coords: (c && c.lat && c.lon) ? `${c.lat},${c.lon}` : null })
+
+  function openProvider(p) {
+    if (!ready) return
+    window.open(p.build(point(fromCity), point(toCity), mode, destination), '_blank', 'noopener')
+  }
+  function addLeg() {
+    if (!ready) return
+    onAdd({ from_city_id: fromCity.id, to_city_id: toCity.id, mode: PLAN_TO_MODE[mode] || 'treno' })
+  }
+
+  // overflow:visible così il menu a tendina non viene tagliato dalla .card
+  return (
+    <div className="card" style={{ padding: '.85rem 1rem', marginBottom: '1rem', overflow: 'visible' }}>
+      <div style={{ fontWeight: 700, fontSize: '.9rem', marginBottom: '.6rem', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
+        🧭 Come spostarsi
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem' }}>
+        <div style={{ flex: '1 1 130px', minWidth: 110 }}>
+          <label className="form-label" style={{ fontSize: '.72rem' }}>Da</label>
+          <CustomSelect value={from} onChange={setFrom}
+            options={[{ value: '', label: '— Città —' }, ...cityOpts]} />
+        </div>
+        <div style={{ flex: '1 1 130px', minWidth: 110 }}>
+          <label className="form-label" style={{ fontSize: '.72rem' }}>A</label>
+          <CustomSelect value={to} onChange={setTo}
+            options={[{ value: '', label: '— Città —' }, ...cityOpts]} />
+        </div>
+        <div style={{ flex: '1 1 130px', minWidth: 110 }}>
+          <label className="form-label" style={{ fontSize: '.72rem' }}>Mezzo</label>
+          <CustomSelect value={mode} onChange={setMode}
+            options={[
+              { value: 'transit', label: 'Mezzi pubblici' },
+              { value: 'driving', label: 'Auto' },
+              { value: 'walking', label: 'A piedi' },
+            ]} />
+        </div>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.5rem', marginTop: '.7rem' }}>
+        {providers.map((p, i) => (
+          <button key={p.id} className={`btn btn-sm ${i === 0 ? 'btn-primary' : 'btn-secondary'}`}
+            disabled={!ready} onClick={() => openProvider(p)}
+            title={p.prefilled ? `Apri ${p.label}` : `${p.label} — apre la pagina di ricerca`}>
+            {p.emoji} {p.label}{p.prefilled ? '' : ' ↗'}
+          </button>
+        ))}
+        {onAdd && (
+          <button className="btn btn-ghost btn-sm" disabled={!ready} onClick={addLeg}>
+            <Icon name="add" size={13} /> Aggiungi come spostamento
+          </button>
+        )}
+      </div>
+      <div style={{ fontSize: '.72rem', color: 'var(--text-muted)', marginTop: '.55rem' }}>
+        Rome2Rio confronta tutte le opzioni (volo/treno/bus/auto); Google Maps dà orari e percorso del mezzo scelto. Poi salva la tratta qui.
+      </div>
+    </div>
+  )
+}
+
 /* ─── TransportsTab ──────────────────────────────────────────────────────────── */
-export default function TransportsTab({ tripId, transports = [], cities = [], days = [], myRole, onRefresh }) {
+export default function TransportsTab({ tripId, transports = [], cities = [], days = [], myRole, onRefresh, destination = '' }) {
   const [modal, setModal] = useState(null) // 'add' | transport object
+  const [addDefaults, setAddDefaults] = useState(null) // prefill per il modale di aggiunta
   const { confirm: doConfirm, modal: confirmModal } = useConfirm()
   const canEdit = myRole === 'admin' || myRole === 'editor'
 
@@ -327,11 +421,16 @@ export default function TransportsTab({ tripId, transports = [], cities = [], da
           {total > 0 && <> · Totale <strong style={{ color: 'var(--text)' }}>€{total.toFixed(2)}</strong></>}
         </div>
         {canEdit && (
-          <button className="btn btn-primary btn-sm" onClick={() => setModal('add')}>
+          <button className="btn btn-primary btn-sm" onClick={() => { setAddDefaults(null); setModal('add') }}>
             <Icon name="add" size={14} /> Aggiungi
           </button>
         )}
       </div>
+
+      {cities.length >= 2 && (
+        <DirectionsPlanner cities={cities} destination={destination}
+          onAdd={canEdit ? (d) => { setAddDefaults(d); setModal('add') } : null} />
+      )}
 
       {transports.length === 0 ? (
         <div className="empty-state">
@@ -341,7 +440,7 @@ export default function TransportsTab({ tripId, transports = [], cities = [], da
         </div>
       ) : (
         transports.map(t => (
-          <TransportCard key={t.id} t={t} canEdit={canEdit}
+          <TransportCard key={t.id} t={t} cities={cities} canEdit={canEdit}
             onEdit={() => setModal(t)} onDelete={() => handleDelete(t)} />
         ))
       )}
@@ -350,7 +449,9 @@ export default function TransportsTab({ tripId, transports = [], cities = [], da
         <TransportModal
           tripId={tripId} cities={cities} days={days}
           transport={modal === 'add' ? null : modal}
-          onSaved={onRefresh} onClose={() => setModal(null)}
+          defaults={modal === 'add' ? (addDefaults || {}) : {}}
+          onSaved={onRefresh}
+          onClose={() => { setModal(null); setAddDefaults(null) }}
         />
       )}
       {confirmModal}

@@ -9,7 +9,7 @@ router.get('/:token', async (req, res) => {
 
     const [daysRes, wishlistRes, participantsRes, transportsRes] = await Promise.all([
       pool.query(`
-        SELECT td.*, tc.name AS city_name, tc.color AS city_color,
+        SELECT td.*, COALESCE(tc.name_en, tc.name) AS city_name, tc.color AS city_color,
           COALESCE(
             json_agg(
               json_build_object(
@@ -24,12 +24,15 @@ router.get('/:token', async (req, res) => {
         LEFT JOIN trip_cities tc ON tc.id = td.city_id
         LEFT JOIN day_activities da ON da.day_id = td.id
         WHERE td.trip_id = $1
-        GROUP BY td.id, tc.name, tc.color
+        GROUP BY td.id, tc.name_en, tc.name, tc.color
         ORDER BY td.date
       `, [t.id]),
       // Le note dei luoghi possono contenere appunti personali → escluse dallo share pubblico
       pool.query(
-        'SELECT name, city, category, priority, maps_link FROM wishlist_places WHERE trip_id=$1 ORDER BY priority, name',
+        `SELECT wp.name, COALESCE(tc.name_en, wp.city) AS city, wp.category, wp.priority, wp.maps_link
+         FROM wishlist_places wp
+         LEFT JOIN trip_cities tc ON tc.trip_id = wp.trip_id AND LOWER(tc.name) = LOWER(wp.city)
+         WHERE wp.trip_id=$1 ORDER BY wp.priority, wp.name`,
         [t.id]
       ),
       pool.query(
@@ -39,7 +42,7 @@ router.get('/:token', async (req, res) => {
       // Solo campi non sensibili: niente costo, prenotazione, posto, link o biglietto
       pool.query(`
         SELECT tr.mode, tr.from_place, tr.to_place,
-               fc.name AS from_city_name, tcc.name AS to_city_name,
+               COALESCE(fc.name_en, fc.name) AS from_city_name, COALESCE(tcc.name_en, tcc.name) AS to_city_name,
                tr.depart_date, tr.depart_time, tr.arrive_date, tr.arrive_time, tr.carrier
         FROM transports tr
         LEFT JOIN trip_cities fc ON fc.id = tr.from_city_id

@@ -5,6 +5,7 @@ import Icon from './Icon'
 import { addToWishlist, importFromMaps, updateWishlistPlace, deleteWishlistPlace, addActivity, deleteActivity, toggleWishlistVote } from '../js/api'
 import { useConfirm } from './ConfirmModal'
 import CustomSelect from './CustomSelect'
+import { cityLabel, cityNameLabel } from '../js/cityLabel'
 
 const CAT_COLOR = {
   museo: '#3b82f6', galleria: '#7c3aed', attrazione: '#c26b4a', tempio: '#8b5cf6',
@@ -64,6 +65,7 @@ function CatDot({ category }) {
 function AddPlaceModal({ tripId, cities, onSaved, onClose }) {
   const [form, setForm] = useState({ name: '', city: '', category: 'altro', notes: '', maps_link: '', priority: 2 })
   const [saving, setSaving] = useState(false)
+  const [newCity, setNewCity] = useState(false) // città digitata a mano (verrà creata al salvataggio)
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
   async function save() {
     if (!form.name) return
@@ -86,12 +88,29 @@ function AddPlaceModal({ tripId, cities, onSaved, onClose }) {
       </div>
       <div className="form-row">
         <div className="form-group"><label className="form-label">Città</label>
-          <input className="form-control" placeholder="Es. Kyoto" list="wl-cities-list"
-            value={form.city} onChange={e => set('city', e.target.value)} />
-          {cities?.length > 0 && (
-            <datalist id="wl-cities-list">
-              {cities.map(c => <option key={c.id} value={c.name} />)}
-            </datalist>
+          {cities?.length > 0 && !newCity ? (
+            <CustomSelect
+              value={form.city}
+              onChange={v => { if (v === '__new__') { setNewCity(true); set('city', '') } else set('city', v) }}
+              placeholder="— Nessuna città —"
+              options={[
+                { value: '', label: '— Nessuna città —' },
+                ...cities.map(c => ({ value: c.name, label: cityLabel(c) })),
+                { value: '__new__', label: '➕ Nuova città…' },
+              ]}
+            />
+          ) : (
+            <>
+              <input className="form-control" placeholder="Es. Kyoto" autoFocus={newCity}
+                value={form.city} onChange={e => set('city', e.target.value)} />
+              {cities?.length > 0 && (
+                <button type="button" className="btn-link"
+                  style={{ background: 'none', border: 'none', padding: '.25rem 0 0', color: 'var(--primary)', fontSize: '.78rem', cursor: 'pointer' }}
+                  onClick={() => { setNewCity(false); set('city', '') }}>
+                  ← Scegli dall'elenco
+                </button>
+              )}
+            </>
           )}
         </div>
         <div className="form-group"><label className="form-label">Categoria</label>
@@ -211,7 +230,7 @@ function SlotModal({ place, days, tripId, onSaved, onClose }) {
   )
 }
 
-function PlaceDetailModal({ place, tripId, myRole, days, onRefresh, onClose, voteCount = 0, myVote = false, onVote }) {
+function PlaceDetailModal({ place, tripId, myRole, days, cities, onRefresh, onClose, voteCount = 0, myVote = false, onVote }) {
   const [slotModal, setSlotModal]     = useState(false)
   const [activeIdx, setActiveIdx]     = useState(0)
   const [brokenIdxs, setBrokenIdxs]  = useState(new Set())
@@ -378,7 +397,7 @@ function PlaceDetailModal({ place, tripId, myRole, days, onRefresh, onClose, vot
 
           {place.city && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '.3rem', marginBottom: '.75rem', color: 'var(--text-muted)', fontSize: '.88rem', fontWeight: 600 }}>
-              <Icon name="pin" size={13} color="var(--primary)" /> {place.city}
+              <Icon name="pin" size={13} color="var(--primary)" /> {cityNameLabel(place.city, cities)}
             </div>
           )}
 
@@ -443,7 +462,7 @@ function PlaceDetailModal({ place, tripId, myRole, days, onRefresh, onClose, vot
   )
 }
 
-function PlaceCard({ place, tripId, myRole, days, onRefresh }) {
+function PlaceCard({ place, tripId, myRole, days, cities, onRefresh }) {
   const [detailModal, setDetailModal] = useState(false)
   const [slotModal, setSlotModal]     = useState(false)
   const [myVote, setMyVote]           = useState(!!place.my_vote)
@@ -504,7 +523,7 @@ function PlaceCard({ place, tripId, myRole, days, onRefresh }) {
             <div className="place-name" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{place.name}</div>
             {place.city && (
               <div className="place-city">
-                <Icon name="pin" size={11} color="var(--text-muted)" /> {place.city}
+                <Icon name="pin" size={11} color="var(--text-muted)" /> {cityNameLabel(place.city, cities)}
               </div>
             )}
           </div>
@@ -550,7 +569,7 @@ function PlaceCard({ place, tripId, myRole, days, onRefresh }) {
       )}
       {detailModal && (
         <PlaceDetailModal place={place} tripId={tripId} myRole={myRole}
-          days={days} onRefresh={onRefresh} onClose={() => setDetailModal(false)}
+          days={days} cities={cities} onRefresh={onRefresh} onClose={() => setDetailModal(false)}
           voteCount={voteCount} myVote={myVote} onVote={handleVote} />
       )}
     </>
@@ -713,7 +732,7 @@ export default function WishlistTab({ tripId, wishlist, days, myRole, onRefresh,
                   onClick={() => setCityFilter(f => f === city.name ? '' : city.name)}
                 >
                   <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: city.color, marginRight: 4 }} />
-                  {city.name}
+                  {cityLabel(city)}
                   {cnt > 0 && <span style={{ marginLeft: 4, opacity: .65, fontSize: '.77rem' }}>({cnt})</span>}
                 </button>
               )
@@ -795,7 +814,7 @@ export default function WishlistTab({ tripId, wishlist, days, myRole, onRefresh,
           ) : (
             <div className="wishlist-grid">
               {topPicks.map(p => (
-                <PlaceCard key={p.id} place={p} tripId={tripId} myRole={myRole} days={days} onRefresh={onRefresh} />
+                <PlaceCard key={p.id} place={p} tripId={tripId} myRole={myRole} days={days} cities={cities} onRefresh={onRefresh} />
               ))}
             </div>
           )}
@@ -834,7 +853,7 @@ export default function WishlistTab({ tripId, wishlist, days, myRole, onRefresh,
               {!collapsed && (
                 <div className="wishlist-grid">
                   {group.places.map(p => (
-                    <PlaceCard key={p.id} place={p} tripId={tripId} myRole={myRole} days={days} onRefresh={onRefresh} />
+                    <PlaceCard key={p.id} place={p} tripId={tripId} myRole={myRole} days={days} cities={cities} onRefresh={onRefresh} />
                   ))}
                 </div>
               )}

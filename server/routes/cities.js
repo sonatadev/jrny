@@ -50,11 +50,11 @@ router.post('/', async (req, res) => {
 router.put('/:cityId', async (req, res) => {
   const role = await checkAccess(req.params.id, req.user.id, 'editor');
   if (!role) return res.status(403).json({ error: 'Permesso insufficiente' });
-  const { name, color, lat, lon } = req.body;
+  const { name, color, lat, lon, name_en } = req.body;
   try {
     const result = await pool.query(
-      'UPDATE trip_cities SET name=COALESCE($1,name), color=COALESCE($2,color), lat=COALESCE($3,lat), lon=COALESCE($4,lon) WHERE id=$5 AND trip_id=$6 RETURNING *',
-      [name ?? null, color ?? null, lat ?? null, lon ?? null, req.params.cityId, req.params.id]
+      'UPDATE trip_cities SET name=COALESCE($1,name), color=COALESCE($2,color), lat=COALESCE($3,lat), lon=COALESCE($4,lon), name_en=COALESCE($5,name_en) WHERE id=$6 AND trip_id=$7 RETURNING *',
+      [name ?? null, color ?? null, lat ?? null, lon ?? null, name_en ?? null, req.params.cityId, req.params.id]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Città non trovata' });
     res.json(result.rows[0]);

@@ -62,9 +62,10 @@ services:
 networks:
   jrny_net:
     driver: bridge
+  # DMZ per-app: rete dedicata condivisa solo con NPM
   npm_network:
     external: true
-    name: pcmastergoon_pcmaster_network
+    name: jrny_edge
 
 volumes:
   postgres_data:

@@ -7,6 +7,7 @@ import Icon from './Icon'
 import Modal from './Modal'
 import { useConfirm } from './ConfirmModal'
 import { addActivity, deleteActivity } from '../js/api'
+import { cityNameLabel } from '../js/cityLabel'
 
 const SLOTS = [
   { key: 'mattina',    label: 'Mattina' },
@@ -18,7 +19,7 @@ const SLOTS = [
 const CAT_COLOR = { tempio: '#8b5cf6', chiesa: '#d4a017', cibo: '#f59e0b', natura: '#10b981', shopping: '#ec4899', museo: '#3b82f6', palestra: '#ef4444', sport: '#f97316', teatro: '#a21caf', cinema: '#4f46e5', musica: '#be185d', nightlife: '#9333ea', benessere: '#0d9488', libreria: '#854d0e', zoo: '#65a30d', acquario: '#0891b2', farmacia: '#16a34a', supermercato: '#0369a1', trasporto: '#6b7280', alloggio: 'var(--primary)', altro: 'var(--text-light)' }
 const PRIORITY_DOT = { 1: '#c94040', 2: '#c98c30', 3: '#6b9e7a' }
 
-function DraggablePlace({ place, dragDisabled, usage = 0 }) {
+function DraggablePlace({ place, dragDisabled, usage = 0, cities }) {
   // Un posto resta trascinabile anche se già pianificato: può andare in più slot/giorni.
   // Trasciniamo direttamente l'elemento sorgente con transform (niente DragOverlay): così
   // la card segue esattamente il cursore, immune al problema di posizionamento `fixed`
@@ -49,7 +50,7 @@ function DraggablePlace({ place, dragDisabled, usage = 0 }) {
         <div style={{ fontSize: '.875rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {place.name}
         </div>
-        {place.city && <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>{place.city}</div>}
+        {place.city && <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>{cityNameLabel(place.city, cities)}</div>}
       </div>
       {usage > 0 && <span className="piano-usage-badge" title={`Già in ${usage} slot`}>×{usage}</span>}
       <div style={{ width: 8, height: 8, borderRadius: 99, background: PRIORITY_DOT[place.priority] || '#aaa', flexShrink: 0 }} />
@@ -99,7 +100,7 @@ function DroppableSlot({ dayId, slot, children, items, canEdit, onClear, onAdd, 
 
 // Picker: scegli quale meta della wishlist assegnare allo slot (alternativa al drag, ideale su mobile).
 // Mostra tutte le mete — anche quelle già pianificate — così un posto può finire in più slot/giorni.
-function AddToSlotModal({ places, usageCount, slotLabel, dayLabel, onPick, onClose }) {
+function AddToSlotModal({ places, usageCount, slotLabel, dayLabel, onPick, onClose, cities }) {
   // Non ancora pianificati in cima, poi i già pianificati (comunque ri-aggiungibili)
   const sorted = [...places].sort((a, b) => (usageCount[a.id] ? 1 : 0) - (usageCount[b.id] ? 1 : 0))
   return (
@@ -119,7 +120,7 @@ function AddToSlotModal({ places, usageCount, slotLabel, dayLabel, onPick, onClo
                 <div style={{ width: 10, height: 10, borderRadius: 99, background: CAT_COLOR[p.category] || 'var(--text-light)', flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '.9rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-                  {p.city && <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>{p.city}</div>}
+                  {p.city && <div style={{ fontSize: '.75rem', color: 'var(--text-muted)' }}>{cityNameLabel(p.city, cities)}</div>}
                 </div>
                 {used > 0 && <span className="piano-usage-badge" title={`Già in ${used} slot`}>già ×{used}</span>}
                 <div style={{ width: 8, height: 8, borderRadius: 99, background: PRIORITY_DOT[p.priority] || '#aaa', flexShrink: 0 }} />
@@ -133,7 +134,7 @@ function AddToSlotModal({ places, usageCount, slotLabel, dayLabel, onPick, onClo
   )
 }
 
-export default function PianoTab({ tripId, wishlist, days, myRole, onRefresh }) {
+export default function PianoTab({ tripId, wishlist, days, myRole, onRefresh, cities }) {
   const [addTarget, setAddTarget] = useState(null)
   const { confirm: doConfirm, modal: confirmModal } = useConfirm()
   const canEdit = myRole === 'admin' || myRole === 'editor'
@@ -270,7 +271,7 @@ export default function PianoTab({ tripId, wishlist, days, myRole, onRefresh }) 
                   </div>
                 ) : (
                   unslotted.map(p => (
-                    <DraggablePlace key={p.id} place={p} dragDisabled={isMobile} usage={0} />
+                    <DraggablePlace key={p.id} place={p} dragDisabled={isMobile} usage={0} cities={cities} />
                   ))
                 )}
                 {slotted.length > 0 && (
@@ -279,7 +280,7 @@ export default function PianoTab({ tripId, wishlist, days, myRole, onRefresh }) 
                       Pianificati · ri-assegnabili
                     </div>
                     {slotted.map(p => (
-                      <DraggablePlace key={p.id} place={p} dragDisabled={isMobile} usage={usageCount[p.id] || 0} />
+                      <DraggablePlace key={p.id} place={p} dragDisabled={isMobile} usage={usageCount[p.id] || 0} cities={cities} />
                     ))}
                   </>
                 )}
@@ -334,6 +335,7 @@ export default function PianoTab({ tripId, wishlist, days, myRole, onRefresh }) 
       {addTarget && (
         <AddToSlotModal
           places={wishlist}
+          cities={cities}
           usageCount={usageCount}
           slotLabel={addTarget.slotLabel}
           dayLabel={format(parseISO(addTarget.day.date), 'EEEE d MMMM', { locale: it })}

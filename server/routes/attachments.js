@@ -1,5 +1,6 @@
 const router = require('express').Router({ mergeParams: true });
 const { pool } = require('../db/init');
+const { randomFileToken } = require('../utils/security');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -19,7 +20,7 @@ const storage = multer.diskStorage({
     // Normalizza l'estensione e neutralizza quelle pericolose
     let ext = path.extname(file.originalname).toLowerCase();
     if (BLOCKED_EXT.has(ext)) ext = '.bin';
-    cb(null, `att-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+    cb(null, `att-${Date.now()}-${randomFileToken()}${ext}`);
   },
 });
 

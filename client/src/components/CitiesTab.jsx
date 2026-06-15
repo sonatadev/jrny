@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Modal from './Modal'
 import Icon from './Icon'
 import { addCity, deleteCity } from '../js/api'
+import { cityLabel } from '../js/cityLabel'
 
 function AddCityModal({ tripId, onSaved, onClose }) {
   const [name, setName] = useState('')
@@ -99,7 +100,7 @@ export default function CitiesTab({ tripId, cities, wishlist, myRole, onRefresh 
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: '.95rem', color: 'var(--text)', marginBottom: '.15rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {city.name}
+                    {cityLabel(city)}
                   </div>
                   <div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>
                     {count} {count === 1 ? 'meta' : 'mete'}

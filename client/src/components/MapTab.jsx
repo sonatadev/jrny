@@ -27,12 +27,33 @@ function coloredIcon(color) {
   })
 }
 
+// Cross-session cache of geocode queries we've already tried, so cities that
+// can't be resolved (or already have coords but no English name) don't re-hit
+// Nominatim on every map open. Keyed by `${cityName}|${destination}`.
+const ATTEMPT_KEY = 'jrny_geocode_attempts'
+
+function loadAttempts() {
+  try { return new Set(JSON.parse(localStorage.getItem(ATTEMPT_KEY) || '[]')) }
+  catch { return new Set() }
+}
+
+function saveAttempt(set, key) {
+  set.add(key)
+  try { localStorage.setItem(ATTEMPT_KEY, JSON.stringify([...set])) } catch {}
+}
+
 async function geocode(cityName, destination) {
   const q = encodeURIComponent(`${cityName}, ${destination}`)
   try {
-    const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`)
+    // accept-language=en + namedetails gives us the English/romanized name for display.
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&accept-language=en&namedetails=1`)
     const data = await r.json()
-    if (data.length > 0) return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) }
+    if (data.length > 0) {
+      const d = data[0]
+      const name_en = (d.namedetails && d.namedetails['name:en'])
+        || (d.display_name ? d.display_name.split(',')[0].trim() : null)
+      return { lat: parseFloat(d.lat), lon: parseFloat(d.lon), name_en }
+    }
   } catch {}
   return null
 }
@@ -62,6 +83,7 @@ const PRIORITY_DOT = { 1: '🔴', 2: '🟡', 3: '🟢' }
 
 export default function MapTab({ tripId, cities, wishlist, trip }) {
   const [coords, setCoords] = useState({})
+  const [names, setNames] = useState({})
   const [loading, setLoading] = useState(false)
   const done = useRef(false)
 
@@ -69,24 +91,43 @@ export default function MapTab({ tripId, cities, wishlist, trip }) {
     if (done.current || cities.length === 0) { setLoading(false); return }
     done.current = true
 
-    const needsGeocode = cities.filter(c => !c.lat || !c.lon)
-    const hasCoords = cities.filter(c => c.lat && c.lon)
+    // Seed from data we already have.
+    const initCoords = {}
+    const initNames = {}
+    cities.forEach(c => {
+      if (c.lat && c.lon) initCoords[c.id] = { lat: parseFloat(c.lat), lon: parseFloat(c.lon) }
+      if (c.name_en) initNames[c.id] = c.name_en
+    })
+    setCoords(initCoords)
+    setNames(initNames)
 
-    const initial = {}
-    hasCoords.forEach(c => { initial[c.id] = { lat: parseFloat(c.lat), lon: parseFloat(c.lon) } })
-    setCoords(initial)
-
-    if (!needsGeocode.length) return
+    // A city needs a lookup if it's missing coordinates OR an English name,
+    // and we haven't already tried that exact query before (cross-session cache).
+    const attempts = loadAttempts()
+    const needsLookup = cities.filter(c =>
+      (!c.lat || !c.lon || !c.name_en) && !attempts.has(`${c.name}|${trip.destination}`)
+    )
+    if (!needsLookup.length) return
 
     setLoading(true)
     ;(async () => {
-      const updates = { ...initial }
-      for (const city of needsGeocode) {
+      for (const city of needsLookup) {
         const r = await geocode(city.name, trip.destination)
+        saveAttempt(attempts, `${city.name}|${trip.destination}`)
         if (r) {
-          updates[city.id] = r
-          setCoords(prev => ({ ...prev, [city.id]: r }))
-          try { await updateCity(tripId, city.id, r) } catch {}
+          const patch = {}
+          if ((!city.lat || !city.lon) && r.lat && r.lon) {
+            patch.lat = r.lat
+            patch.lon = r.lon
+            setCoords(prev => ({ ...prev, [city.id]: { lat: r.lat, lon: r.lon } }))
+          }
+          if (!city.name_en && r.name_en) {
+            patch.name_en = r.name_en
+            setNames(prev => ({ ...prev, [city.id]: r.name_en }))
+          }
+          if (Object.keys(patch).length) {
+            try { await updateCity(tripId, city.id, patch) } catch {}
+          }
         }
         await new Promise(res => setTimeout(res, 400))
       }
@@ -99,6 +140,7 @@ export default function MapTab({ tripId, cities, wishlist, trip }) {
     .map(c => ({
       city: c,
       pos: [coords[c.id].lat, coords[c.id].lon],
+      nameEn: names[c.id] || c.name_en || null,
       places: wishlist.filter(p => p.city === c.name),
     }))
 
@@ -130,14 +172,21 @@ export default function MapTab({ tripId, cities, wishlist, trip }) {
             scrollWheelZoom
           >
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+              subdomains="abcd"
+              detectRetina
             />
-            {markers.map(({ city, pos, places }) => (
+            {markers.map(({ city, pos, nameEn, places }) => (
               <Marker key={city.id} position={pos} icon={coloredIcon(city.color)}>
                 <Popup maxWidth={280} minWidth={180}>
                   <div style={{ fontWeight: 700, fontSize: '1rem', color: city.color, marginBottom: '.4rem' }}>
-                    {city.name}
+                    {nameEn || city.name}
+                    {nameEn && nameEn !== city.name && (
+                      <span style={{ display: 'block', fontWeight: 500, fontSize: '.75rem', color: '#888' }}>
+                        {city.name}
+                      </span>
+                    )}
                   </div>
                   {places.length === 0 ? (
                     <div style={{ fontSize: '.8rem', color: '#888' }}>Nessuna meta salvata</div>

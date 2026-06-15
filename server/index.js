@@ -6,6 +6,7 @@ const fs = require('fs');
 const multer = require('multer');
 const { initDb } = require('./db/init');
 const authMiddleware = require('./middleware/auth');
+const { randomFileToken } = require('./utils/security');
 
 const app = express();
 
@@ -52,7 +53,7 @@ const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadsDir),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `cover-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+    cb(null, `cover-${Date.now()}-${randomFileToken()}${ext}`);
   }
 });
 const upload = multer({
@@ -88,6 +89,7 @@ app.use('/api/trips/:id/attachments', authMiddleware, require('./routes/attachme
 app.use('/api/trips/:id/photos', authMiddleware, require('./routes/photos'));
 app.use('/uploads/photos', uploadStatic(path.join(__dirname, 'uploads/photos')));
 app.use('/api/trips/:id/notes', authMiddleware, require('./routes/notes'));
+app.use('/api/trips/:id/checklist', authMiddleware, require('./routes/checklist'));
 app.use('/api/trips/:id/note-images', authMiddleware, require('./routes/note_images'));
 app.use('/uploads/note-images', uploadStatic(path.join(__dirname, 'uploads/note-images')));
 app.use('/api/trips/:id/transports', authMiddleware, require('./routes/transports'));

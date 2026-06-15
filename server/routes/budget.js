@@ -13,6 +13,11 @@ async function checkAccess(tripId, userId, minRole = 'viewer') {
   return role;
 }
 
+async function placeBelongsToTrip(placeId, tripId) {
+  const r = await pool.query('SELECT id FROM wishlist_places WHERE id=$1 AND trip_id=$2', [placeId, tripId]);
+  return r.rows.length > 0;
+}
+
 // GET /api/trips/:id/budget
 router.get('/', async (req, res) => {
   const role = await checkAccess(req.params.id, req.user.id);
@@ -23,9 +28,10 @@ router.get('/', async (req, res) => {
     if (!tripRes.rows.length) return res.status(404).json({ error: 'Viaggio non trovato' });
 
     const entries = await pool.query(`
-      SELECT be.*, u.name as paid_by_user_name
+      SELECT be.*, u.name as paid_by_user_name, wp.name AS place_name
       FROM budget_entries be
       LEFT JOIN users u ON u.id = be.paid_by_user_id
+      LEFT JOIN wishlist_places wp ON wp.id = be.place_id
       WHERE be.trip_id=$1
       ORDER BY be.entry_date DESC, be.created_at DESC
     `, [req.params.id]);
@@ -81,16 +87,19 @@ router.post('/', async (req, res) => {
   const role = await checkAccess(req.params.id, req.user.id, 'editor');
   if (!role) return res.status(403).json({ error: 'Permesso insufficiente' });
 
-  const { category, description, paid_by_user_id, paid_by_name, entry_date } = req.body;
+  const { category, description, paid_by_user_id, paid_by_name, entry_date, place_id } = req.body;
   if (!category) return res.status(400).json({ error: 'Importo e categoria obbligatori' });
   const amt = parseNumber(req.body.amount, { field: 'Importo', min: 0, allowNull: false });
   if (amt.error) return res.status(400).json({ error: amt.error });
 
   try {
+    if (place_id && !(await placeBelongsToTrip(place_id, req.params.id)))
+      return res.status(400).json({ error: 'Meta non valida' });
+
     const result = await pool.query(
-      `INSERT INTO budget_entries (trip_id, amount, category, description, paid_by_user_id, paid_by_name, entry_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [req.params.id, amt.value, category, description, paid_by_user_id || null, paid_by_name || null, entry_date || new Date().toISOString().split('T')[0]]
+      `INSERT INTO budget_entries (trip_id, amount, category, description, paid_by_user_id, paid_by_name, entry_date, place_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [req.params.id, amt.value, category, description, paid_by_user_id || null, paid_by_name || null, entry_date || new Date().toISOString().split('T')[0], place_id || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -104,7 +113,7 @@ router.put('/:entryId', async (req, res) => {
   const role = await checkAccess(req.params.id, req.user.id, 'editor');
   if (!role) return res.status(403).json({ error: 'Permesso insufficiente' });
 
-  const { category, description, paid_by_user_id, paid_by_name, entry_date } = req.body;
+  const { category, description, paid_by_user_id, paid_by_name, entry_date, place_id } = req.body;
   const amt = parseNumber(req.body.amount, { field: 'Importo', min: 0 });
   if (amt.error) return res.status(400).json({ error: amt.error });
   try {
@@ -115,13 +124,17 @@ router.put('/:entryId', async (req, res) => {
     if (linked.rows.length && linked.rows[0].transport_id)
       return res.status(400).json({ error: 'Voce gestita dai Trasporti: modificala dalla sezione Trasporti' });
 
+    if (place_id && !(await placeBelongsToTrip(place_id, req.params.id)))
+      return res.status(400).json({ error: 'Meta non valida' });
+
     const result = await pool.query(
       `UPDATE budget_entries SET
         amount=COALESCE($1,amount), category=COALESCE($2,category),
         description=COALESCE($3,description), paid_by_user_id=COALESCE($4,paid_by_user_id),
-        paid_by_name=COALESCE($5,paid_by_name), entry_date=COALESCE($6,entry_date)
-       WHERE id=$7 AND trip_id=$8 RETURNING *`,
-      [amt.value, category, description, paid_by_user_id, paid_by_name, entry_date, req.params.entryId, req.params.id]
+        paid_by_name=COALESCE($5,paid_by_name), entry_date=COALESCE($6,entry_date),
+        place_id=$7
+       WHERE id=$8 AND trip_id=$9 RETURNING *`,
+      [amt.value, category, description, paid_by_user_id, paid_by_name, entry_date, place_id || null, req.params.entryId, req.params.id]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Spesa non trovata' });
     res.json(result.rows[0]);

@@ -1,5 +1,6 @@
 const router = require('express').Router({ mergeParams: true });
 const { pool } = require('../db/init');
+const { randomFileToken } = require('../utils/security');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -11,7 +12,7 @@ const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, PHOTOS_DIR),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `photo-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+    cb(null, `photo-${Date.now()}-${randomFileToken()}${ext}`);
   },
 });
 

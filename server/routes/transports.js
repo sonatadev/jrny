@@ -1,6 +1,6 @@
 const router = require('express').Router({ mergeParams: true });
 const { pool } = require('../db/init');
-const { isSafeUrl, parseNumber } = require('../utils/security');
+const { isSafeUrl, parseNumber, randomFileToken } = require('../utils/security');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -17,7 +17,7 @@ const ticketUpload = multer({
     destination: (req, file, cb) => cb(null, TICKET_DIR),
     filename: (req, file, cb) => {
       const ext = path.extname(file.originalname).toLowerCase();
-      cb(null, `ticket-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+      cb(null, `ticket-${Date.now()}-${randomFileToken()}${ext}`);
     },
   }),
   limits: { fileSize: 20 * 1024 * 1024 },
@@ -140,7 +140,7 @@ router.get('/', async (req, res) => {
   if (!role) return res.status(403).json({ error: 'Accesso negato' });
   try {
     const result = await pool.query(
-      `SELECT t.*, fc.name AS from_city_name, tcc.name AS to_city_name
+      `SELECT t.*, COALESCE(fc.name_en, fc.name) AS from_city_name, COALESCE(tcc.name_en, tcc.name) AS to_city_name
        FROM transports t
        LEFT JOIN trip_cities fc ON fc.id = t.from_city_id
        LEFT JOIN trip_cities tcc ON tcc.id = t.to_city_id

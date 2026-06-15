@@ -11,6 +11,7 @@ import { useConfirm } from './ConfirmModal'
 import CustomSelect from './CustomSelect'
 import { addActivity, updateActivity, deleteActivity, updateDay, addCity, deleteCity, reorderActivities, toggleActivityComplete, uploadTripPhoto, deleteTripPhoto, deleteTransport, openAttachment } from '../js/api'
 import { TransportModal, modeEmoji, modeLabel } from './TransportsTab'
+import { cityLabel, cityNameLabel } from '../js/cityLabel'
 
 const SLOTS = [
   { key: 'mattina',    label: 'Mattina',     colorClass: 'slot-icon-mattina',    color: '#f59e0b' },
@@ -26,7 +27,7 @@ const CAT_EMOJI = { tempio: '⛩', chiesa: '⛪', cibo: '🍜', natura: '🌿', 
 const CITY_PALETTE = ['#c26b4a', '#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899', '#ef4444', '#6b7280']
 
 /* ─── ActivityModal (add + edit) ───────────────────────────────────────────── */
-function ActivityModal({ dayId, slot, tripId, onSaved, onClose, wishlist, activity }) {
+function ActivityModal({ dayId, slot, tripId, onSaved, onClose, wishlist, cities, activity }) {
   const isEdit = !!activity
   const [form, setForm] = useState(
     isEdit
@@ -112,7 +113,7 @@ function ActivityModal({ dayId, slot, tripId, onSaved, onClose, wishlist, activi
               { value: '', label: '— attività personalizzata —' },
               ...availableWishlist.map(p => ({
                 value: String(p.id),
-                label: p.name + (p.city ? ` · ${p.city}` : ''),
+                label: p.name + (p.city ? ` · ${cityNameLabel(p.city, cities)}` : ''),
               })),
             ]}
           />
@@ -234,7 +235,7 @@ function CitiesManagerModal({ tripId, cities, days, myRole, onSaved, onClose }) 
               <div key={city.id} className="city-list-item">
                 <span className="city-list-dot" style={{ background: city.color }} />
                 <div className="city-list-info">
-                  <span className="city-list-name">{city.name}</span>
+                  <span className="city-list-name">{cityLabel(city)}</span>
                   <span className="city-list-count">{n > 0 ? `${n} giorn${n === 1 ? 'o' : 'i'}` : 'Nessun giorno'}</span>
                 </div>
                 {canEdit && (
@@ -665,7 +666,7 @@ function DayCard({ day, tripId, myRole, onRefresh, wishlist, cities, cityInfo, d
   async function saveDay() {
     setSaving(true)
     const cityId = dayForm.city_id ? parseInt(dayForm.city_id) : null
-    const cityName = cities.find(c => c.id === cityId)?.name || ''
+    const cityName = cityLabel(cities.find(c => c.id === cityId))
     try {
       await updateDay(tripId, day.id, { city_id: cityId, city_area: cityName, notes: dayForm.notes })
       onRefresh()
@@ -689,7 +690,7 @@ function DayCard({ day, tripId, myRole, onRefresh, wishlist, cities, cityInfo, d
               <span className="day-city-pill"
                 style={{ background: cityInfo.color + '22', color: cityInfo.color, borderColor: cityInfo.color + '55' }}>
                 <span className="day-city-dot" style={{ background: cityInfo.color }} />
-                {cityInfo.name}
+                {cityLabel(cityInfo)}
               </span>
               <span className="day-city-counter">
                 Giorno {cityInfo.dayIndex} di {cityInfo.totalDays}
@@ -848,7 +849,7 @@ function DayCard({ day, tripId, myRole, onRefresh, wishlist, cities, cityInfo, d
       {addModal && (
         <ActivityModal
           dayId={day.id} slot={addModal} tripId={tripId}
-          wishlist={wishlist}
+          wishlist={wishlist} cities={cities}
           onSaved={onRefresh} onClose={() => setAddModal(null)}
         />
       )}
@@ -856,7 +857,7 @@ function DayCard({ day, tripId, myRole, onRefresh, wishlist, cities, cityInfo, d
       {editActivityModal && (
         <ActivityModal
           dayId={day.id} slot={editActivityModal.slot} tripId={tripId}
-          wishlist={wishlist}
+          wishlist={wishlist} cities={cities}
           activity={editActivityModal}
           onSaved={() => { onRefresh(); setEditActivityModal(null) }}
           onClose={() => setEditActivityModal(null)}
@@ -882,7 +883,7 @@ function DayCard({ day, tripId, myRole, onRefresh, wishlist, cities, cityInfo, d
                 onChange={v => setDayForm(f => ({ ...f, city_id: v }))}
                 options={[
                   { value: '', label: '— Nessuna città —' },
-                  ...cities.map(c => ({ value: String(c.id), label: c.name })),
+                  ...cities.map(c => ({ value: String(c.id), label: cityLabel(c) })),
                 ]}
               />
             ) : (
@@ -921,6 +922,7 @@ export default function ItineraryTab({ tripId, days, myRole, onRefresh, wishlist
         const idx = cityGroups[d.city_id].indexOf(d.id)
         info[d.id] = {
           name: d.city_name,
+          name_en: cities.find(c => c.id === d.city_id)?.name_en || null,
           color: d.city_color || '#c26b4a',
           dayIndex: idx + 1,
           totalDays: cityGroups[d.city_id].length
@@ -928,7 +930,7 @@ export default function ItineraryTab({ tripId, days, myRole, onRefresh, wishlist
       }
     }
     return info
-  }, [days])
+  }, [days, cities])
 
   if (!days || days.length === 0) {
     return (

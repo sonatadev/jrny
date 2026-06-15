@@ -233,6 +233,10 @@ img { max-width: 100%; display: block; }
   z-index: 0;
   overflow: hidden;
 }
+/* While any modal is open, kill the decorative background. Its infinitely
+   animating orbs/particles otherwise keep repainting through the semi-opaque
+   overlay, which reads as flicker on mobile. The overlay portals to <body>. */
+body:has(.modal-overlay) .global-bg { display: none; }
 .global-bg-aurora {
   position: absolute;
   inset: -50%;
@@ -1397,7 +1401,7 @@ select.form-control { cursor: pointer; }
   backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
   display: flex; align-items: flex-end; justify-content: center;
   z-index: 9999; padding: 0;
-  animation: fadeIn .22s ease;
+  animation: fadeIn .22s ease backwards;
   isolation: isolate;
 }
 @media (min-width: 600px) { .modal-overlay { align-items: center; padding: 1.5rem; } }
@@ -1407,9 +1411,17 @@ select.form-control { cursor: pointer; }
   width: 100%; max-width: 520px;
   max-height: 90vh; max-height: 90dvh;
   display: flex; flex-direction: column; overflow: hidden;
-  animation: slideUp .25s cubic-bezier(.22,.68,0,1.2);
+  animation: slideUp .25s cubic-bezier(.22,.68,0,1.2) backwards;
   border: 1px solid var(--border-light);
+  /* Promote to a stable compositing layer so the rounded-corner image clip
+     doesn't re-rasterize each frame while sliding up (mobile WebKit flicker) */
+  transform: translateZ(0);
+  backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  will-change: transform;
 }
+/* Bake images onto their own layer too — stops corner/edge flicker during the
+   slide-up over the blurred backdrop on mobile */
+.modal img { backface-visibility: hidden; -webkit-backface-visibility: hidden; transform: translateZ(0); }
 @media (min-width: 600px) { .modal { border-radius: var(--radius); } }
 .modal-header {
   padding: 1.1rem 1.35rem;
@@ -2102,6 +2114,14 @@ select.form-control { cursor: pointer; }
 @media (max-width: 640px) {
   /* Kill the rotating/shifting aurora entirely */
   .global-bg-aurora { display: none; }
+
+  /* Drop the overlay's backdrop blur: re-sampling the page behind it every
+     frame while the modal slides up is the main cause of the open-modal
+     flicker on mobile. Use a slightly more opaque solid scrim instead. */
+  .modal-overlay {
+    backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+    background: rgba(15,23,42,.58);
+  }
 
   /* Remove blur from orbs — biggest GPU win */
   .global-bg-orb { filter: none !important; opacity: .25 !important; }

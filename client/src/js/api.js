@@ -130,12 +130,17 @@ export const uploadAttachment = (tripId, file) => {
 export const deleteAttachment = (tripId, attId) => api.delete(`/trips/${tripId}/attachments/${attId}`)
 
 // Allegati e biglietti non sono più pubblici: vanno scaricati con il token via
-// endpoint autenticato e aperti come blob. `storedPath` è del tipo
-// "/uploads/attachments/att-...". Apre il file in una nuova scheda.
-export async function openAttachment(storedPath) {
+// endpoint autenticato. `storedPath` è del tipo "/uploads/attachments/att-...".
+// Restituisce un object URL del blob (da revocare con URL.revokeObjectURL).
+export async function fetchAttachmentObjectUrl(storedPath) {
   const filename = String(storedPath).split('/').pop()
   const r = await api.get(`/files/attachment/${encodeURIComponent(filename)}`, { responseType: 'blob' })
-  const url = URL.createObjectURL(r.data)
+  return URL.createObjectURL(r.data)
+}
+
+// Apre l'allegato in una nuova scheda (per PDF/documenti non visualizzabili inline).
+export async function openAttachment(storedPath) {
+  const url = await fetchAttachmentObjectUrl(storedPath)
   window.open(url, '_blank', 'noopener')
   setTimeout(() => URL.revokeObjectURL(url), 60000)
 }
@@ -146,6 +151,12 @@ export const getNote = (tripId, noteId) => api.get(`/trips/${tripId}/notes/${not
 export const addNote = (tripId, data) => api.post(`/trips/${tripId}/notes`, data)
 export const updateNote = (tripId, noteId, data) => api.put(`/trips/${tripId}/notes/${noteId}`, data)
 export const deleteNote = (tripId, noteId) => api.delete(`/trips/${tripId}/notes/${noteId}`)
+
+// Checklist / To-do (note_id null = board del viaggio, valorizzato = nota-lista)
+export const getChecklist = (tripId) => api.get(`/trips/${tripId}/checklist`)
+export const addChecklistItem = (tripId, data) => api.post(`/trips/${tripId}/checklist`, data)
+export const updateChecklistItem = (tripId, itemId, data) => api.put(`/trips/${tripId}/checklist/${itemId}`, data)
+export const deleteChecklistItem = (tripId, itemId) => api.delete(`/trips/${tripId}/checklist/${itemId}`)
 
 // Note images (immagini di pianificazione nella bacheca note)
 export const getNoteImages = (tripId) => api.get(`/trips/${tripId}/note-images`)

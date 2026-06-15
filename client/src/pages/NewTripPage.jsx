@@ -5,6 +5,7 @@ import ParticlesBg from '../components/ParticlesBg'
 import Icon from '../components/Icon'
 import CustomSelect from '../components/CustomSelect'
 import DatePicker from '../components/DatePicker'
+import CountrySelect from '../components/CountrySelect'
 import { createTrip, uploadImage } from '../js/api'
 import { format, parseISO, differenceInDays } from 'date-fns'
 import { it } from 'date-fns/locale'
@@ -189,10 +190,9 @@ export default function NewTripPage() {
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">Destinazione principale *</label>
-                  <input className="form-control" required
-                    placeholder="Es. Giappone"
-                    value={form.destination} onChange={e => set('destination', e.target.value)} />
-                  <div className="form-hint">Le singole città verranno aggiunte giorno per giorno nell'itinerario</div>
+                  <CountrySelect required
+                    value={form.destination} onChange={v => set('destination', v)} />
+                  <div className="form-hint">Scegli il paese dall'elenco o scrivilo. Le singole città si aggiungono giorno per giorno nell'itinerario</div>
                 </div>
               </div>
             </div>

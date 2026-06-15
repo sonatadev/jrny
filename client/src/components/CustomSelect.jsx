@@ -33,7 +33,10 @@ export default function CustomSelect({
         aria-expanded={open}
         aria-haspopup="listbox"
       >
-        <span style={selected ? {} : { color: 'var(--text-light)', fontWeight: 400 }}>
+        <span style={{
+          flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          ...(selected ? {} : { color: 'var(--text-light)', fontWeight: 400 }),
+        }}>
           {selected ? selected.label : placeholder}
         </span>
         <Icon name="chevronDown" size={15} color="var(--text-muted)"

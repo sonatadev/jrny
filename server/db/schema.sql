@@ -118,6 +118,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS uidx_wishlist_places_name ON wishlist_places (
 ALTER TABLE wishlist_places ADD COLUMN IF NOT EXISTS photo_url TEXT;
 ALTER TABLE wishlist_places ADD COLUMN IF NOT EXISTS photos TEXT[];
 
+ALTER TABLE trip_cities ADD COLUMN IF NOT EXISTS name_en VARCHAR(255);
+
 CREATE TABLE IF NOT EXISTS budget_entries (
   id SERIAL PRIMARY KEY,
   trip_id INTEGER REFERENCES trips(id) ON DELETE CASCADE,
@@ -227,6 +229,33 @@ CREATE TABLE IF NOT EXISTS transports (
 -- Feature: sincronizzazione costo trasporti ↔ budget
 ALTER TABLE budget_entries ADD COLUMN IF NOT EXISTS transport_id INTEGER REFERENCES transports(id) ON DELETE CASCADE;
 
+-- Feature: spesa collegabile (opzionale) a una meta della wishlist
+ALTER TABLE budget_entries ADD COLUMN IF NOT EXISTS place_id INTEGER REFERENCES wishlist_places(id) ON DELETE SET NULL;
+
 -- Feature: biglietto allegato (PDF/immagine) per trasporto
 ALTER TABLE transports ADD COLUMN IF NOT EXISTS ticket_path TEXT;
 ALTER TABLE transports ADD COLUMN IF NOT EXISTS ticket_name VARCHAR(255);
+
+-- Feature: to-do / checklist
+-- 'kind' distingue le note normali (rich text) dalle liste di cose da fare.
+ALTER TABLE note_cards ADD COLUMN IF NOT EXISTS kind VARCHAR(20) NOT NULL DEFAULT 'note';  -- 'note' | 'todo'
+
+-- Feature: categoria tematica delle note (attrazioni, gite, negozi…), per filtrarle come le mete.
+ALTER TABLE note_cards ADD COLUMN IF NOT EXISTS category VARCHAR(50);
+
+-- Voci di checklist. note_id NULL = board "To-do" del viaggio (un'unica lista condivisa);
+-- note_id valorizzato = voci di una nota-lista (note_cards.kind='todo').
+CREATE TABLE IF NOT EXISTS checklist_items (
+  id SERIAL PRIMARY KEY,
+  trip_id INTEGER REFERENCES trips(id) ON DELETE CASCADE,
+  note_id INTEGER REFERENCES note_cards(id) ON DELETE CASCADE,
+  text VARCHAR(500) NOT NULL,
+  done BOOLEAN DEFAULT FALSE,
+  assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  sort_order INTEGER DEFAULT 0,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_checklist_items_trip ON checklist_items(trip_id);
+CREATE INDEX IF NOT EXISTS idx_checklist_items_note ON checklist_items(note_id);

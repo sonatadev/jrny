@@ -52,6 +52,21 @@ router.post('/', async (req, res) => {
   if (!isSafeUrl(maps_link)) return res.status(400).json({ error: 'Link mappa non valido' });
 
   try {
+    // Se la meta porta una città nuova, creala in trip_cities (come per l'import).
+    if (city) {
+      const cityExists = await pool.query(
+        'SELECT id FROM trip_cities WHERE trip_id=$1 AND LOWER(name)=LOWER($2)',
+        [req.params.id, city]
+      );
+      if (!cityExists.rows.length) {
+        const countRes = await pool.query('SELECT COUNT(*) FROM trip_cities WHERE trip_id=$1', [req.params.id]);
+        await pool.query(
+          'INSERT INTO trip_cities (trip_id, name, color, sort_order) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING',
+          [req.params.id, city, '#c26b4a', parseInt(countRes.rows[0].count)]
+        );
+      }
+    }
+
     const result = await pool.query(
       `INSERT INTO wishlist_places (trip_id, name, city, category, notes, maps_link, priority, added_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,

@@ -1,16 +1,18 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { format, parseISO, differenceInDays } from 'date-fns'
 import { it } from 'date-fns/locale'
 import Modal from './Modal'
 import Icon from './Icon'
 import CustomSelect from './CustomSelect'
+import CountrySelect from './CountrySelect'
 import { useConfirm } from './ConfirmModal'
 import {
   updateTrip, inviteToTrip, updateParticipantRole, removeParticipant, cancelInvitation,
   generateInviteLink, revokeInviteLink,
   toggleShareLink,
-  getAttachments, uploadAttachment, deleteAttachment, openAttachment,
+  getAttachments, uploadAttachment, deleteAttachment, openAttachment, fetchAttachmentObjectUrl,
   cloneTrip, uploadImage, updateTripNotes,
 } from '../js/api'
 
@@ -203,6 +205,28 @@ export default function InfoTab({ trip, myRole, onTripUpdated, days }) {
   const [attLoading, setAttLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef(null)
+  // Anteprima immagine allegata (lightbox); { url (blob), name }
+  const [imgPreview, setImgPreview] = useState(null)
+
+  // Apre un allegato: le immagini nel lightbox, gli altri file in una nuova scheda.
+  // I file passano dall'endpoint autenticato (/api/files), quindi vanno recuperati come blob.
+  async function handleOpenAttachment(att) {
+    try {
+      if (att.mime_type && att.mime_type.startsWith('image/')) {
+        const url = await fetchAttachmentObjectUrl(att.file_path)
+        setImgPreview({ url, name: att.name })
+      } else {
+        await openAttachment(att.file_path)
+      }
+    } catch {
+      alert('Impossibile aprire il file')
+    }
+  }
+
+  function closeImgPreview() {
+    if (imgPreview?.url) URL.revokeObjectURL(imgPreview.url)
+    setImgPreview(null)
+  }
 
   const canEdit = myRole === 'admin' || myRole === 'editor'
   const start = parseISO(trip.start_date)
@@ -555,7 +579,7 @@ export default function InfoTab({ trip, myRole, onTripUpdated, days }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '.875rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     <a role="button" tabIndex={0}
-                      onClick={() => openAttachment(att.file_path).catch(() => alert('Impossibile aprire il file'))}
+                      onClick={() => handleOpenAttachment(att)}
                       style={{ color: 'var(--text)', textDecoration: 'none', cursor: 'pointer' }}>{att.name}</a>
                   </div>
                   <div style={{ fontSize: '.72rem', color: 'var(--text-muted)' }}>
@@ -581,7 +605,7 @@ export default function InfoTab({ trip, myRole, onTripUpdated, days }) {
           <div className="form-group"><label className="form-label">Titolo</label>
             <input className="form-control" value={editForm.title} onChange={e => setEditForm({ ...editForm, title: e.target.value })} /></div>
           <div className="form-group"><label className="form-label">Destinazione</label>
-            <input className="form-control" value={editForm.destination} onChange={e => setEditForm({ ...editForm, destination: e.target.value })} /></div>
+            <CountrySelect value={editForm.destination} onChange={v => setEditForm({ ...editForm, destination: v })} /></div>
           <div className="form-group"><label className="form-label">Stato</label>
             <CustomSelect value={editForm.status} onChange={v => setEditForm({ ...editForm, status: v })}
               options={[{ value: 'pianificazione', label: 'Pianificazione' }, { value: 'confermato', label: 'Confermato' }, { value: 'concluso', label: 'Concluso' }]} /></div>
@@ -623,6 +647,20 @@ export default function InfoTab({ trip, myRole, onTripUpdated, days }) {
             <CustomSelect value={inviteRole} onChange={v => setInviteRole(v)}
               options={[{ value: 'editor', label: 'Editor (può modificare)' }, { value: 'viewer', label: 'Viewer (sola lettura)' }]} /></div>
         </Modal>
+      )}
+
+      {imgPreview && createPortal(
+        <div className="ni-lightbox" onClick={closeImgPreview}>
+          <button className="ni-lightbox-close" onClick={closeImgPreview} aria-label="Chiudi">✕</button>
+          <img className="ni-lightbox-img" src={imgPreview.url} alt={imgPreview.name || ''}
+            onClick={e => e.stopPropagation()} />
+          {imgPreview.name && (
+            <div className="ni-lightbox-meta" onClick={e => e.stopPropagation()}>
+              <div className="ni-lightbox-label">{imgPreview.name}</div>
+            </div>
+          )}
+        </div>,
+        document.body
       )}
 
       {confirmModal}
