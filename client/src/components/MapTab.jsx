@@ -27,6 +27,34 @@ function coloredIcon(color) {
   })
 }
 
+// Category colors, kept in sync with WishlistTab's CAT_COLOR (fallback for unknowns).
+const CAT_COLOR = {
+  museo: '#3b82f6', galleria: '#7c3aed', attrazione: '#c26b4a', tempio: '#8b5cf6',
+  santuario: '#6d28d9', castello: '#92400e', storico: '#a16207', rovine: '#78716c',
+  monumento: '#64748b', panorama: '#0284c7', parco: '#16a34a', giardino: '#059669',
+  spiaggia: '#0891b2', natura: '#10b981', terme: '#06b6d4',
+  ristorante: '#ea580c', cafe: '#92400e', bar: '#b45309', street_food: '#d97706',
+  mercato: '#b45309', shopping: '#ec4899', moda: '#db2777', souvenir: '#f43f5e',
+  palestra: '#ef4444', sport: '#f97316', piscina: '#0369a1', benessere: '#0d9488',
+  teatro: '#a21caf', cinema: '#4f46e5', musica: '#be185d', nightlife: '#9333ea',
+  libreria: '#854d0e', chiesa: '#d4a017', farmacia: '#16a34a', supermercato: '#0369a1',
+  zoo: '#65a30d', acquario: '#0891b2',
+  cibo: '#f59e0b', trasporto: '#6b7280', alloggio: '#c26b4a', altro: '#9ca3af',
+}
+
+// Small round marker for individual places, colored by category.
+function placeIcon(color) {
+  const html = `<div style="width:15px;height:15px;border-radius:50%;background:${color};border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45)"></div>`
+  return L.divIcon({
+    html,
+    className: '',
+    iconSize: [15, 15],
+    iconAnchor: [7, 7],
+    popupAnchor: [0, -9],
+  })
+}
+
+
 // Cross-session cache of geocode queries we've already tried, so cities that
 // can't be resolved (or already have coords but no English name) don't re-hit
 // Nominatim on every map open. Keyed by `${cityName}|${destination}`.
@@ -58,13 +86,20 @@ async function geocode(cityName, destination) {
   return null
 }
 
-function FitBounds({ positions }) {
+// Fit the view to the given points, but only when the set of points actually
+// changes — never on every render. Re-fitting on each render would fight the
+// user's manual zoom/pan (setView keeps snapping back).
+function FitBounds({ positions, singleZoom = 11 }) {
   const map = useMap()
+  const last = useRef(null)
   useEffect(() => {
     if (!positions.length) return
-    if (positions.length === 1) { map.setView(positions[0], 10); return }
+    const sig = positions.map(p => p.join(',')).join('|')
+    if (sig === last.current) return
+    last.current = sig
+    if (positions.length === 1) { map.setView(positions[0], singleZoom); return }
     map.fitBounds(L.latLngBounds(positions), { padding: [50, 50] })
-  }, [positions, map])
+  }, [positions, map, singleZoom])
   return null
 }
 
@@ -85,6 +120,11 @@ export default function MapTab({ tripId, cities, wishlist, trip }) {
   const [coords, setCoords] = useState({})
   const [names, setNames] = useState({})
   const [loading, setLoading] = useState(false)
+  // 'cities' → one pin per city; 'places' → individual geolocated places.
+  // Default to places when we have any, so imported spots show right away.
+  const [view, setView] = useState(() =>
+    wishlist.some(p => p.lat != null && p.lon != null) ? 'places' : 'cities'
+  )
   const done = useRef(false)
 
   useEffect(() => {
@@ -146,14 +186,48 @@ export default function MapTab({ tripId, cities, wishlist, trip }) {
 
   const positions = markers.map(m => m.pos)
 
+  // Individual places with coordinates (captured at Google Maps import time).
+  const placeMarkers = wishlist
+    .filter(p => p.lat != null && p.lon != null)
+    .map(p => ({
+      place: p,
+      pos: [parseFloat(p.lat), parseFloat(p.lon)],
+      color: CAT_COLOR[p.category] || CAT_COLOR.altro,
+    }))
+    .filter(m => Number.isFinite(m.pos[0]) && Number.isFinite(m.pos[1]))
+
+  const showPlaces = view === 'places' && placeMarkers.length > 0
+  const activePositions = showPlaces ? placeMarkers.map(m => m.pos) : positions
+
   return (
     <div>
-      <div className="section-header" style={{ marginBottom: '1.25rem' }}>
+      <div className="section-header" style={{ marginBottom: '1.25rem', gap: '.75rem', flexWrap: 'wrap' }}>
         <div className="section-title">Mappa del viaggio</div>
         {loading && (
           <div style={{ fontSize: '.82rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '.4rem' }}>
             <div className="spinner" style={{ width: 14, height: 14 }} />
             Geolocalizzazione città...
+          </div>
+        )}
+        {placeMarkers.length > 0 && (
+          <div style={{ display: 'flex', gap: 0, marginLeft: 'auto', border: '1.5px solid var(--border-light)', borderRadius: 99, overflow: 'hidden', flexShrink: 0 }}>
+            {[
+              { key: 'cities', label: `Città (${markers.length})` },
+              { key: 'places', label: `Mete (${placeMarkers.length})` },
+            ].map(opt => (
+              <button
+                key={opt.key}
+                onClick={() => setView(opt.key)}
+                style={{
+                  border: 'none', cursor: 'pointer', padding: '.4rem .85rem',
+                  fontSize: '.82rem', fontWeight: 700,
+                  background: view === opt.key ? 'var(--primary)' : 'transparent',
+                  color: view === opt.key ? '#fff' : 'var(--text-muted)',
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
         )}
       </div>
@@ -177,7 +251,7 @@ export default function MapTab({ tripId, cities, wishlist, trip }) {
               subdomains="abcd"
               detectRetina
             />
-            {markers.map(({ city, pos, nameEn, places }) => (
+            {!showPlaces && markers.map(({ city, pos, nameEn, places }) => (
               <Marker key={city.id} position={pos} icon={coloredIcon(city.color)}>
                 <Popup maxWidth={280} minWidth={180}>
                   <div style={{ fontWeight: 700, fontSize: '1rem', color: city.color, marginBottom: '.4rem' }}>
@@ -218,7 +292,29 @@ export default function MapTab({ tripId, cities, wishlist, trip }) {
                 </Popup>
               </Marker>
             ))}
-            {positions.length > 0 && <FitBounds positions={positions} />}
+            {showPlaces && placeMarkers.map(({ place, pos, color }) => (
+              <Marker key={`p-${place.id}`} position={pos} icon={placeIcon(color)}>
+                <Popup maxWidth={260} minWidth={160}>
+                  <div style={{ fontWeight: 700, fontSize: '.95rem', color, marginBottom: '.25rem' }}>
+                    <span style={{ marginRight: '.3rem' }}>{PRIORITY_DOT[place.priority] || '⚪'}</span>
+                    {place.name}
+                  </div>
+                  <div style={{ fontSize: '.75rem', color: '#888', marginBottom: place.maps_link ? '.4rem' : 0 }}>
+                    {CAT_LABEL[place.category] || place.category}
+                    {place.city && ` · ${place.city}`}
+                  </div>
+                  {place.maps_link && (
+                    <a href={place.maps_link} target="_blank" rel="noopener noreferrer"
+                      style={{ fontSize: '.78rem', color: '#2563eb', textDecoration: 'none' }}>
+                      Apri in Google Maps ↗
+                    </a>
+                  )}
+                </Popup>
+              </Marker>
+            ))}
+            {activePositions.length > 0 && (
+              <FitBounds positions={activePositions} singleZoom={showPlaces ? 14 : 11} />
+            )}
           </MapContainer>
         </div>
       )}
@@ -228,6 +324,7 @@ export default function MapTab({ tripId, cities, wishlist, trip }) {
           {cities.length - markers.length} {cities.length - markers.length === 1 ? 'città non trovata' : 'città non trovate'} sulla mappa
         </div>
       )}
+
     </div>
   )
 }

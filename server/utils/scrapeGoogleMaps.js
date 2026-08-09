@@ -236,6 +236,31 @@ function nameFromMapsUrl(url) {
   } catch { return null; }
 }
 
+// Extract place coordinates embedded in a Google Maps URL.
+// Prefers the precise pin marker (!3d<lat>!4d<lon>) over the map center (@lat,lon,zoom),
+// which can be offset from the actual place. Returns { lat, lon } or null.
+function coordsFromMapsUrl(url) {
+  if (!url) return null;
+  const valid = (lat, lon) =>
+    Number.isFinite(lat) && Number.isFinite(lon) &&
+    Math.abs(lat) <= 90 && Math.abs(lon) <= 180 &&
+    !(lat === 0 && lon === 0);
+
+  // Precise pin: ...!3d35.658581!4d139.745438...
+  const pin = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+  if (pin) {
+    const lat = parseFloat(pin[1]), lon = parseFloat(pin[2]);
+    if (valid(lat, lon)) return { lat, lon };
+  }
+  // Map center fallback: .../@35.658581,139.745438,17z...
+  const at = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (at) {
+    const lat = parseFloat(at[1]), lon = parseFloat(at[2]);
+    if (valid(lat, lon)) return { lat, lon };
+  }
+  return null;
+}
+
 // Extract address (everything after the first comma in the path component)
 function addressFromMapsUrl(url) {
   try {
@@ -490,7 +515,13 @@ async function scrapeGoogleMaps(url) {
 
   const photo_url = photos[0] || null;
 
-  return { name: finalName, city: city || null, category, notes, maps_link: url, photo_url, photos };
+  // --- Coordinates: prefer the resolved place URL (has the pin), fall back to input ---
+  const coords = coordsFromMapsUrl(firstMapsUrl) || coordsFromMapsUrl(url);
+
+  return {
+    name: finalName, city: city || null, category, notes, maps_link: url, photo_url, photos,
+    lat: coords?.lat ?? null, lon: coords?.lon ?? null,
+  };
 }
 
-module.exports = { scrapeGoogleMaps, isGoogleMapsUrl };
+module.exports = { scrapeGoogleMaps, isGoogleMapsUrl, coordsFromMapsUrl };

@@ -117,6 +117,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS uidx_wishlist_places_name ON wishlist_places (
 
 ALTER TABLE wishlist_places ADD COLUMN IF NOT EXISTS photo_url TEXT;
 ALTER TABLE wishlist_places ADD COLUMN IF NOT EXISTS photos TEXT[];
+ALTER TABLE wishlist_places ADD COLUMN IF NOT EXISTS lat DECIMAL(9,6);
+ALTER TABLE wishlist_places ADD COLUMN IF NOT EXISTS lon DECIMAL(9,6);
 
 ALTER TABLE trip_cities ADD COLUMN IF NOT EXISTS name_en VARCHAR(255);
 

@@ -134,19 +134,22 @@ router.post('/import', async (req, res) => {
            notes=COALESCE($2, notes),
            maps_link=$3,
            photo_url=COALESCE($4, photo_url),
-           photos=COALESCE($5, photos)
-         WHERE id=$6 RETURNING *`,
+           photos=COALESCE($5, photos),
+           lat=COALESCE($6, lat),
+           lon=COALESCE($7, lon)
+         WHERE id=$8 RETURNING *`,
         [placeData.city, placeData.notes, placeData.maps_link,
-         placeData.photo_url, photosArr, existing.rows[0].id]
+         placeData.photo_url, photosArr, placeData.lat, placeData.lon, existing.rows[0].id]
       );
       place = { ...r.rows[0], _already_existed: true };
     } else {
       const r = await pool.query(
         `INSERT INTO wishlist_places
-           (trip_id, name, city, category, notes, maps_link, photo_url, photos, priority, added_by)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+           (trip_id, name, city, category, notes, maps_link, photo_url, photos, lat, lon, priority, added_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
         [tripId, placeData.name, placeData.city, placeData.category,
-         placeData.notes, placeData.maps_link, placeData.photo_url, photosArr, 2, req.user.id]
+         placeData.notes, placeData.maps_link, placeData.photo_url, photosArr,
+         placeData.lat, placeData.lon, 2, req.user.id]
       );
       place = r.rows[0];
     }
