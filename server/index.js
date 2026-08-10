@@ -121,6 +121,8 @@ app.post('/api/upload', authMiddleware, uploadLimiter, upload.single('image'), (
 
 // Route protette
 app.use('/api/users', authMiddleware, require('./routes/users'));
+// Diritti GDPR: esportazione e cancellazione dell'account
+app.use('/api/users/me', authMiddleware, require('./routes/account'));
 // Download autenticato di allegati e biglietti (verifica appartenenza al viaggio)
 app.use('/api/files', authMiddleware, require('./routes/files'));
 app.use('/api/trips', authMiddleware, require('./routes/trips'));

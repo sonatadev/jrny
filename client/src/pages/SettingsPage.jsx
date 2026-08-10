@@ -2,13 +2,13 @@ import { useState, useEffect, useRef } from 'react'
 import Layout from '../components/Layout'
 import Icon from '../components/Icon'
 import { useAuth } from '../js/auth'
-import { getMe, updateProfile, uploadImage, updateAppearance, updatePassword } from '../js/api'
+import { getMe, updateProfile, uploadImage, updateAppearance, updatePassword, exportMyData, deleteMyAccount } from '../js/api'
 import { THEMES, MODES, getTheme, getMode, setTheme, setMode, syncFromAccount } from '../js/theme'
 
 const EMPTY = { first_name: '', last_name: '', email: '', phone: '', age: '', avatar_url: '' }
 
 export default function SettingsPage() {
-  const { updateUser, setSessionToken } = useAuth()
+  const { updateUser, setSessionToken, logout } = useAuth()
   const [form, setForm] = useState(EMPTY)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -23,6 +23,39 @@ export default function SettingsPage() {
   // Cambio password
   const [pw, setPw] = useState({ current: '', next: '', confirm: '' })
   const [savingPw, setSavingPw] = useState(false)
+
+  // Diritti GDPR: esportazione e cancellazione
+  const [exporting, setExporting] = useState(false)
+  const [deletePw, setDeletePw] = useState('')
+  const [deleting, setDeleting] = useState(false)
+
+  async function downloadData() {
+    setExporting(true)
+    try {
+      const r = await exportMyData()
+      const url = URL.createObjectURL(r.data)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'jrny-i-miei-dati.json'
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(url), 10000)
+    } catch {
+      setMsg({ type: 'error', text: 'Esportazione non riuscita, riprova più tardi' })
+    } finally { setExporting(false) }
+  }
+
+  async function removeAccount() {
+    // Conferma esplicita: l'operazione non è annullabile
+    if (!window.confirm('Eliminare definitivamente il tuo account? I dati non saranno recuperabili.')) return
+    setDeleting(true)
+    try {
+      await deleteMyAccount({ password: deletePw })
+      logout()
+      window.location.href = '/login'
+    } catch (err) {
+      setMsg({ type: 'error', text: err.response?.data?.error || 'Cancellazione non riuscita' })
+    } finally { setDeleting(false) }
+  }
 
   useEffect(() => {
     getMe()
@@ -216,7 +249,7 @@ export default function SettingsPage() {
             <div className="form-row">
               <div className="form-group"><label className="form-label">Nuova password</label>
                 <input className="form-control" type="password" autoComplete="new-password"
-                  value={pw.next} onChange={e => setPw(p => ({ ...p, next: e.target.value }))} placeholder="Min. 6 caratteri" />
+                  value={pw.next} onChange={e => setPw(p => ({ ...p, next: e.target.value }))} placeholder="Min. 10 caratteri" />
               </div>
               <div className="form-group"><label className="form-label">Conferma nuova password</label>
                 <input className="form-control" type="password" autoComplete="new-password"
@@ -225,6 +258,41 @@ export default function SettingsPage() {
             </div>
             <button className="btn btn-primary" onClick={savePassword} disabled={savingPw}>
               {savingPw ? 'Salvo...' : 'Cambia password'}
+            </button>
+          </div>
+        </div>
+
+        {/* ── I tuoi dati (diritti GDPR) ── */}
+        <div className="card" style={{ marginTop: '1.5rem' }}>
+          <div className="card-header"><span className="card-title">I tuoi dati</span></div>
+          <div className="card-body">
+            <p style={{ fontSize: '.85rem', color: 'var(--text-muted)', lineHeight: 1.6, marginTop: 0 }}>
+              Puoi scaricare in ogni momento una copia dei tuoi dati, oppure
+              eliminare l'account. I file (foto e allegati) non sono nel file
+              JSON: scaricali dall'app prima di cancellare l'account.
+            </p>
+
+            <button className="btn btn-secondary" onClick={downloadData} disabled={exporting}>
+              <Icon name="download" size={15} /> {exporting ? 'Preparo il file...' : 'Scarica i miei dati'}
+            </button>
+
+            <div style={{ borderTop: '1px solid var(--border)', margin: '1.25rem 0 1rem' }} />
+
+            <div style={{ fontWeight: 700, fontSize: '.9rem', marginBottom: '.4rem', color: 'var(--danger)' }}>
+              Elimina account
+            </div>
+            <p style={{ fontSize: '.82rem', color: 'var(--text-muted)', lineHeight: 1.6, marginTop: 0 }}>
+              L'operazione è definitiva. I viaggi in cui sei l'unico
+              partecipante vengono eliminati con i loro file; negli altri il
+              ruolo di admin passa a un altro partecipante.
+            </p>
+            <div className="form-group" style={{ maxWidth: 320 }}>
+              <label className="form-label">Conferma con la tua password</label>
+              <input className="form-control" type="password" autoComplete="current-password"
+                value={deletePw} onChange={e => setDeletePw(e.target.value)} />
+            </div>
+            <button className="btn btn-danger" onClick={removeAccount} disabled={deleting || !deletePw}>
+              {deleting ? 'Elimino...' : 'Elimina definitivamente il mio account'}
             </button>
           </div>
         </div>

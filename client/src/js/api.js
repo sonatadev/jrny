@@ -33,6 +33,9 @@ export const getMe = () => api.get('/users/me')
 export const updateProfile = (data) => api.put('/users/me', data)
 export const updateAppearance = (data) => api.put('/users/me/appearance', data)
 export const updatePassword = (data) => api.put('/users/me/password', data)
+// Diritti GDPR: copia dei propri dati e cancellazione dell'account
+export const exportMyData = () => api.get('/users/me/export', { responseType: 'blob' })
+export const deleteMyAccount = (data) => api.delete('/users/me', { data })
 
 // Upload immagine
 export const uploadImage = (file) => {
