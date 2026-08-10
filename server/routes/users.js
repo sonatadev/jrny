@@ -35,8 +35,13 @@ router.put('/me', async (req, res) => {
   let ageVal = null;
   if (age !== undefined && age !== null && age !== '') {
     ageVal = parseInt(age);
-    if (isNaN(ageVal) || ageVal < 0 || ageVal > 120)
+    if (isNaN(ageVal) || ageVal > 120)
       return res.status(400).json({ error: 'Età non valida' });
+    // Art. 8 GDPR: in Italia il consenso digitale è valido dai 14 anni.
+    // Sotto quella soglia servirebbe il consenso di chi esercita la
+    // responsabilità genitoriale, che questa app non è in grado di raccogliere.
+    if (ageVal < 14)
+      return res.status(400).json({ error: 'Per usare jrny devi avere almeno 14 anni' });
   }
 
   // name resta sincronizzato come "Nome Cognome" (fallback al name esistente)

@@ -9,6 +9,7 @@ import SharePage from './pages/SharePage'
 import SettingsPage from './pages/SettingsPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
+import LegalPage from './pages/LegalPage'
 import { useEffect, useState, lazy, Suspense } from 'react'
 
 // L'editor note (TipTap) è pesante: caricato solo quando serve
@@ -95,6 +96,8 @@ export default function App() {
           <Route path="/join/:token" element={<JoinPage />} />
           <Route path="/invito/:token" element={<InvitePage />} />
           <Route path="/share/:token" element={<SharePage />} />
+          <Route path="/privacy" element={<LegalPage />} />
+          <Route path="/termini" element={<LegalPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

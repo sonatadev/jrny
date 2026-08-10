@@ -43,6 +43,7 @@ async function sendInviteEmail({ to, inviterName, tripTitle, appUrl, isNewUser, 
   const eTitle = escapeHtml(tripTitle)
   const eActionUrl = escapeHtml(actionUrl)
   const eTo = escapeHtml(to)
+  const eAppUrl = escapeHtml(appUrl)
 
   const html = `<!DOCTYPE html>
 <html lang="it">
@@ -95,8 +96,13 @@ async function sendInviteEmail({ to, inviterName, tripTitle, appUrl, isNewUser, 
         <tr>
           <td style="background:#fdf6ec;padding:20px 40px;border-top:1px solid #e8d9c5">
             <p style="margin:0;font-size:12px;color:#b89d82;text-align:center;line-height:1.6">
-              Hai ricevuto questa email perché <strong>${eTo}</strong> è stato invitato su jrny.<br>
-              Se non ti aspettavi questo invito, puoi ignorare questa email.
+              Hai ricevuto questa email perché <strong>${eTo}</strong> è stato invitato su jrny
+              da una persona che conosce il tuo indirizzo.<br>
+              Se non ti aspettavi questo invito puoi ignorarlo: senza aprire il link non
+              viene creato nulla a tuo nome e l'invito scade da solo in 14 giorni.<br>
+              Per non ricevere più inviti da questa istanza, o per chiedere la
+              cancellazione del tuo indirizzo, scrivi a
+              <a href="${eAppUrl}/privacy" style="color:#c26b4a">chi la gestisce</a>.
             </p>
           </td>
         </tr>

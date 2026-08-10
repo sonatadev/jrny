@@ -8,7 +8,16 @@ Applicazione web per pianificare viaggi in gruppo con itinerario giornaliero, wi
 ```bash
 cp .env.example .env
 ```
-Modifica `.env` con i tuoi valori (soprattutto `JWT_SECRET` e `POSTGRES_PASSWORD`).
+Genera i segreti con `openssl rand -hex 32` (`JWT_SECRET`) e `openssl rand -hex 24`
+(`POSTGRES_PASSWORD`, da riportare anche in `DATABASE_URL`). Il server **rifiuta
+di avviarsi** con i valori di esempio: il repository è pubblico, quindi sarebbero
+noti a chiunque.
+
+> **Prima di aprire l'app al pubblico:** compila i dati del titolare del
+> trattamento in `client/src/pages/LegalPage.jsx`. Finché restano i segnaposto
+> fra parentesi quadre, l'informativa privacy è incompleta.
+> Licenza del codice: `LICENSE`. Componenti di terzi e servizi esterni
+> contattati a runtime: `THIRD-PARTY-NOTICES.md`.
 
 ### 2. Avvia l'applicazione
 ```bash

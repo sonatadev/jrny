@@ -270,6 +270,8 @@ export default function SettingsPage() {
               Puoi scaricare in ogni momento una copia dei tuoi dati, oppure
               eliminare l'account. I file (foto e allegati) non sono nel file
               JSON: scaricali dall'app prima di cancellare l'account.
+              Cosa trattiamo e perché è spiegato nell'
+              <a href="/privacy" target="_blank" rel="noopener">informativa privacy</a>.
             </p>
 
             <button className="btn btn-secondary" onClick={downloadData} disabled={exporting}>
