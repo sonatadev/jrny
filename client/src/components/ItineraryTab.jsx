@@ -380,7 +380,7 @@ function UploadPhotoModal({ dayId, tripId, activities, onSaved, onClose }) {
             </>
           )}
         </div>
-        <input type="file" ref={fileRef} accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
+        <input type="file" ref={fileRef} accept="image/png,image/jpeg,image/webp,image/gif,image/heic,image/heif,image/avif" style={{ display: 'none' }} onChange={handleFileChange} />
 
         <div className="form-group" style={{ marginBottom: 0 }}>
           <label className="form-label">Didascalia (opzionale)</label>

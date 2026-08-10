@@ -293,7 +293,7 @@ export default function NotePage() {
               <EditorContent editor={editor} />
             </div>
 
-            <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFileChange} />
+            <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/heic,image/heif,image/avif" hidden onChange={onFileChange} />
 
             <div className="note-page-status">
               {statusText && <span>{statusText}</span>}

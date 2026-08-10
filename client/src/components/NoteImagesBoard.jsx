@@ -110,7 +110,7 @@ export default function NoteImagesBoard({ tripId, images = [], myRole, onRefresh
         </div>
       )}
 
-      <input ref={fileRef} type="file" accept="image/*" multiple hidden
+      <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/heic,image/heif,image/avif" multiple hidden
         onChange={e => { uploadFiles(e.target.files); e.target.value = '' }} />
 
       <div className={`note-images-drop${dragOver ? ' dragover' : ''}${canEdit ? '' : ' no-drop'}`}

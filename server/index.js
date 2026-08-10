@@ -6,7 +6,7 @@ const fs = require('fs');
 const multer = require('multer');
 const { initDb } = require('./db/init');
 const authMiddleware = require('./middleware/auth');
-const { randomFileToken } = require('./utils/security');
+const { imageFileFilter, imageFilename } = require('./utils/security');
 
 // Fail-fast sui segreti: il repository è pubblico, quindi ogni valore preso da
 // .env.example è noto a chiunque. Un JWT_SECRET di default permette di firmare
@@ -52,6 +52,10 @@ function uploadStatic(dir, { forceDownload = false } = {}) {
   return express.static(dir, {
     setHeaders: (res) => {
       res.setHeader('X-Content-Type-Options', 'nosniff');
+      // Contenuto caricato dagli utenti: nessuno script, nessun frame, nessuna
+      // risorsa esterna. Neutralizza anche un eventuale file attivo già a disco.
+      res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+      res.setHeader('X-Frame-Options', 'DENY');
       // Per gli allegati forza il download invece dell'esecuzione inline (HTML/SVG)
       if (forceDownload) res.setHeader('Content-Disposition', 'attachment');
     },
@@ -73,18 +77,12 @@ app.use('/uploads', uploadStatic(uploadsDir));
 // Multer storage
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadsDir),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `cover-${Date.now()}-${randomFileToken()}${ext}`);
-  }
+  filename: (req, file, cb) => cb(null, imageFilename('cover', file.originalname)),
 });
 const upload = multer({
   storage,
   limits: { fileSize: 8 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('Solo immagini consentite'));
-  }
+  fileFilter: imageFileFilter,
 });
 
 // Route pubbliche

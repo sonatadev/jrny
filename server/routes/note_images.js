@@ -1,6 +1,6 @@
 const router = require('express').Router({ mergeParams: true });
 const { pool } = require('../db/init');
-const { randomFileToken } = require('../utils/security');
+const { imageFileFilter, imageFilename } = require('../utils/security');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -10,19 +10,13 @@ if (!fs.existsSync(NOTE_IMG_DIR)) fs.mkdirSync(NOTE_IMG_DIR, { recursive: true }
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, NOTE_IMG_DIR),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `noteimg-${Date.now()}-${randomFileToken()}${ext}`);
-  },
+  filename: (req, file, cb) => cb(null, imageFilename('noteimg', file.originalname)),
 });
 
 const upload = multer({
   storage,
   limits: { fileSize: 16 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('Solo immagini consentite'));
-  },
+  fileFilter: imageFileFilter,
 });
 
 async function checkAccess(tripId, userId, minRole = 'viewer') {

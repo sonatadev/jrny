@@ -1,11 +1,36 @@
 'use strict';
 
 const crypto = require('crypto');
+const path = require('path');
 
 // Token casuale crittograficamente sicuro (hex) per i nomi file degli upload.
 // Sostituisce Math.random() (predicibile) → i filename non sono indovinabili.
 function randomFileToken(bytes = 16) {
   return crypto.randomBytes(bytes).toString('hex');
+}
+
+// Upload di immagini: allowlist esplicita di estensione E mime type.
+// Il vecchio filtro `mimetype.startsWith('image/')` accettava image/svg+xml:
+// un SVG servito inline dallo stesso origin esegue script, quindi permetteva
+// XSS persistente e furto del token JWT da localStorage.
+const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif', '.heic', '.heif', '.avif']);
+const IMAGE_MIME = new Set([
+  'image/png', 'image/jpeg', 'image/webp', 'image/gif',
+  'image/heic', 'image/heif', 'image/avif',
+]);
+
+function imageFileFilter(req, file, cb) {
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  const mime = (file.mimetype || '').toLowerCase();
+  if (!IMAGE_EXT.has(ext) || !IMAGE_MIME.has(mime))
+    return cb(new Error('Sono ammesse solo immagini (png, jpg, webp, gif, heic)'));
+  cb(null, true);
+}
+
+// Nome file generato: l'estensione arriva sempre dall'allowlist, mai dall'input.
+function imageFilename(prefix, originalname) {
+  const ext = path.extname(originalname || '').toLowerCase();
+  return `${prefix}-${Date.now()}-${randomFileToken()}${IMAGE_EXT.has(ext) ? ext : '.bin'}`;
 }
 
 // Ruoli validi per i partecipanti a un viaggio
@@ -89,4 +114,7 @@ function rateLimit({ windowMs = 15 * 60 * 1000, max = 10, message = 'Troppe rich
   };
 }
 
-module.exports = { VALID_ROLES, isValidRole, isValidEmail, isSafeUrl, parseNumber, escapeHtml, rateLimit, randomFileToken };
+module.exports = {
+  VALID_ROLES, isValidRole, isValidEmail, isSafeUrl, parseNumber, escapeHtml,
+  rateLimit, randomFileToken, imageFileFilter, imageFilename, IMAGE_EXT,
+};

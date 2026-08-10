@@ -133,7 +133,7 @@ export default function SettingsPage() {
                     Rimuovi
                   </button>
                 )}
-                <input type="file" ref={fileRef} accept="image/*" style={{ display: 'none' }} onChange={handleAvatar} />
+                <input type="file" ref={fileRef} accept="image/png,image/jpeg,image/webp,image/gif,image/heic,image/heif,image/avif" style={{ display: 'none' }} onChange={handleAvatar} />
               </div>
             </div>
 

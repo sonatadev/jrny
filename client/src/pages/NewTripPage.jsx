@@ -267,7 +267,7 @@ export default function NewTripPage() {
                   </div>
                 ) : (
                   <div>
-                    <input ref={fileRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
+                    <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/heic,image/heif,image/avif" onChange={handleFileChange} style={{ display: 'none' }} />
                     <div className="image-upload-area" onClick={() => fileRef.current?.click()}>
                       <div className="image-upload-icon">
                         <Icon name="upload" size={28} color="var(--primary)" />

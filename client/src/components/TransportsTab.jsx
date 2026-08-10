@@ -242,7 +242,7 @@ export function TransportModal({ tripId, cities = [], days = [], transport, defa
             <Icon name="upload" size={14} /> Allega biglietto
           </button>
         )}
-        <input type="file" ref={fileRef} accept=".pdf,image/*" style={{ display: 'none' }} onChange={handleFilePick} />
+        <input type="file" ref={fileRef} accept="application/pdf,image/png,image/jpeg,image/webp,image/gif,image/heic,image/heif,image/avif" style={{ display: 'none' }} onChange={handleFilePick} />
       </div>
 
       {days.length > 0 && (

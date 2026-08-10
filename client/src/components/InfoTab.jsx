@@ -628,7 +628,7 @@ export default function InfoTab({ trip, myRole, onTripUpdated, days }) {
                   onError={e => { e.target.style.display = 'none' }} />
               </div>
             )}
-            <input ref={editImageRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleEditImageUpload} />
+            <input ref={editImageRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/heic,image/heif,image/avif" style={{ display: 'none' }} onChange={handleEditImageUpload} />
           </div>
           <div className="form-group"><label className="form-label">Descrizione</label>
             <textarea className="form-control" rows={3} value={editForm.description} onChange={e => setEditForm({ ...editForm, description: e.target.value })} /></div>
