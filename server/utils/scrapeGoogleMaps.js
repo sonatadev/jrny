@@ -45,14 +45,15 @@ function httpsGet(url) {
   });
 }
 
-// Resolves a Places API photo reference to a direct CDN URL (no API key in stored URL).
+// Resolves a Places API photo reference to a direct CDN URL.
+// Solo l'URL finale su googleusercontent.com viene restituito: l'URL dell'API
+// contiene la chiave in chiaro e finirebbe nel DB e nel tag <img> di ogni
+// client. Se il redirect non si risolve, meglio nessuna foto che una chiave
+// pubblicata.
 async function resolvePhotoRef(ref, apiKey) {
   const url = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=1200&photo_reference=${ref}&key=${apiKey}`;
-  const { status, location } = await httpsGet(url);
-  // The endpoint redirects (302/301) to the actual lh3.googleusercontent.com URL
+  const { location } = await httpsGet(url);
   if (location && location.includes('googleusercontent.com')) return location;
-  // Fallback: return the API URL (still works, just exposes key)
-  if (status === 200 || status === 302) return url;
   return null;
 }
 
@@ -508,7 +509,9 @@ async function scrapeGoogleMaps(url) {
     }
   }
 
-  let photos = htmlPhotos.length > 0 ? htmlPhotos : (apiData?.photos || []);
+  // Rete di sicurezza: nessun URL con una chiave API deve poter arrivare al DB.
+  let photos = (htmlPhotos.length > 0 ? htmlPhotos : (apiData?.photos || []))
+    .filter(u => !/[?&]key=/i.test(u));
   if (photos.length === 0 && !apiKey) {
     console.log('[Maps Import] No photos: set GOOGLE_MAPS_API_KEY in .env to enable photo scraping');
   }
