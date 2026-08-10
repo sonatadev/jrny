@@ -18,7 +18,7 @@ export default function RegisterPage() {
     e.preventDefault()
     setError('')
     if (form.password !== form.confirm) { setError('Le password non coincidono'); return }
-    if (form.password.length < 6) { setError('La password deve essere di almeno 6 caratteri'); return }
+    if (form.password.length < 10) { setError('La password deve essere di almeno 10 caratteri'); return }
     setLoading(true)
     try {
       const res = await register({ name: form.name, email: form.email, password: form.password })
@@ -70,7 +70,7 @@ export default function RegisterPage() {
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Password</label>
-                <input className="form-control" type="password" required placeholder="Min. 6 caratteri"
+                <input className="form-control" type="password" required placeholder="Min. 10 caratteri"
                   value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
               </div>
               <div className="form-group">

@@ -47,6 +47,31 @@ function isValidEmail(email) {
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+// Requisiti minimi della password. Il vecchio limite di 6 caratteri lasciava
+// passare password forzabili offline in poche ore se il database trapelasse.
+// Niente regole di composizione (simboli, maiuscole): allungano poco l'entropia
+// reale e spingono verso varianti prevedibili. Meglio lunghezza + blocklist.
+const PASSWORD_MIN_LENGTH = 10;
+const COMMON_PASSWORDS = new Set([
+  'password', 'password1', 'password123', 'passw0rd', '1234567890', '12345678',
+  '123456789', 'qwertyuiop', 'qwerty123', 'iloveyou', 'letmein123', 'welcome123',
+  'abc123456', 'admin12345', 'passwordpassword', 'ciaociao1', 'juventus1',
+]);
+
+// Ritorna null se va bene, altrimenti il messaggio d'errore.
+function validatePassword(password, { email } = {}) {
+  if (typeof password !== 'string' || password.length < PASSWORD_MIN_LENGTH)
+    return `La password deve avere almeno ${PASSWORD_MIN_LENGTH} caratteri`;
+  if (password.length > 200) return 'Password troppo lunga';
+  const lower = password.toLowerCase();
+  if (COMMON_PASSWORDS.has(lower)) return 'Password troppo comune, scegline un\'altra';
+  if (/^(.)\1+$/.test(password)) return 'Password troppo semplice, scegline un\'altra';
+  const local = typeof email === 'string' ? email.split('@')[0].toLowerCase() : '';
+  if (local.length >= 4 && lower.includes(local))
+    return 'La password non può contenere il tuo indirizzo email';
+  return null;
+}
+
 // Accetta solo URL http/https assoluti; blocca schemi pericolosi (javascript:, data:, ecc.)
 // usati come href/src lato client. Ritorna true anche per null/'' (campo opzionale, gestito a parte).
 function isSafeUrl(value) {
@@ -119,4 +144,5 @@ function rateLimit({ windowMs = 15 * 60 * 1000, max = 10, message = 'Troppe rich
 module.exports = {
   VALID_ROLES, isValidRole, isValidEmail, isSafeUrl, parseNumber, escapeHtml,
   rateLimit, randomFileToken, imageFileFilter, imageFilename, IMAGE_EXT,
+  validatePassword, PASSWORD_MIN_LENGTH,
 };

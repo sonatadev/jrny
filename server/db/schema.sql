@@ -211,6 +211,17 @@ CREATE TABLE IF NOT EXISTS note_images (
 -- dalla bacheca immagini, che resta la raccolta curata dall'utente.
 ALTER TABLE note_images ADD COLUMN IF NOT EXISTS inline BOOLEAN NOT NULL DEFAULT FALSE;
 
+-- Recupero password: il token viene salvato solo come hash SHA-256, così
+-- nemmeno chi legge il database può usarlo per prendere un account.
+CREATE TABLE IF NOT EXISTS password_resets (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash VARCHAR(64) NOT NULL UNIQUE,
+  expires_at TIMESTAMP NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS password_resets_user_idx ON password_resets(user_id);
+
 -- Sicurezza: gli inviti venivano accettati automaticamente alla registrazione
 -- di un utente con quell'indirizzo. Bastava conoscere (o indovinare) l'email
 -- invitata per entrare nel viaggio, senza mai provare di possedere la casella.

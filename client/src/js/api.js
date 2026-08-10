@@ -25,6 +25,8 @@ export const register = (data) => api.post('/auth/register', data)
 export const login = (data) => api.post('/auth/login', data)
 // Cancella il cookie che dà accesso a foto e immagini delle note
 export const logoutSession = () => api.post('/auth/logout')
+export const forgotPassword = (data) => api.post('/auth/forgot', data)
+export const resetPassword = (data) => api.post('/auth/reset', data)
 
 // User profile
 export const getMe = () => api.get('/users/me')

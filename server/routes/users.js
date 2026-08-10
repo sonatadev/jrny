@@ -2,8 +2,9 @@ const router = require('express').Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { pool } = require('../db/init');
-const { isValidEmail, rateLimit } = require('../utils/security');
+const { isValidEmail, rateLimit, validatePassword } = require('../utils/security');
 const { setMediaCookie } = require('../middleware/mediaAuth');
+const { sendSecurityNotice } = require('../utils/email');
 
 // Limita i tentativi di verifica della password attuale (bruteforce da sessione valida)
 const passwordLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
@@ -105,8 +106,8 @@ router.put('/me/password', passwordLimiter, async (req, res) => {
   const { current_password, new_password } = req.body;
   if (!current_password || !new_password)
     return res.status(400).json({ error: 'Password attuale e nuova obbligatorie' });
-  if (new_password.length < 6)
-    return res.status(400).json({ error: 'La nuova password deve avere almeno 6 caratteri' });
+  const pwError = validatePassword(new_password, { email: req.user.email });
+  if (pwError) return res.status(400).json({ error: pwError });
 
   try {
     const r = await pool.query('SELECT name, email, password_hash FROM users WHERE id=$1', [req.user.id]);
@@ -115,7 +116,7 @@ router.put('/me/password', passwordLimiter, async (req, res) => {
     const valid = await bcrypt.compare(current_password, r.rows[0].password_hash);
     if (!valid) return res.status(401).json({ error: 'Password attuale errata' });
 
-    const hash = await bcrypt.hash(new_password, 10);
+    const hash = await bcrypt.hash(new_password, 12);
     // Incrementa token_version → revoca tutti i JWT esistenti (anche su altri dispositivi)
     const upd = await pool.query(
       'UPDATE users SET password_hash=$1, token_version=token_version+1 WHERE id=$2 RETURNING token_version',
@@ -129,6 +130,14 @@ router.put('/me/password', passwordLimiter, async (req, res) => {
     );
     // Il vecchio cookie porta un token con token_version superata: va sostituito
     setMediaCookie(req, res, token);
+
+    // Avviso all'indirizzo dell'account: se il cambio non è suo, deve saperlo.
+    sendSecurityNotice({
+      to: r.rows[0].email,
+      subject: 'La password del tuo account jrny è stata cambiata',
+      message: 'La password del tuo account è appena stata modificata dalle impostazioni. Se non sei stato tu, usa "Password dimenticata?" per riprendere il controllo dell\'account.',
+    }).catch(err => console.error('[email] errore invio avviso:', err.message));
+
     res.json({ message: 'Password aggiornata', token });
   } catch (err) {
     console.error(err);

@@ -61,7 +61,7 @@ export default function SettingsPage() {
 
   async function savePassword() {
     if (!pw.current || !pw.next) return setMsg({ type: 'error', text: 'Compila password attuale e nuova' })
-    if (pw.next.length < 6) return setMsg({ type: 'error', text: 'La nuova password deve avere almeno 6 caratteri' })
+    if (pw.next.length < 10) return setMsg({ type: 'error', text: 'La nuova password deve avere almeno 10 caratteri' })
     if (pw.next !== pw.confirm) return setMsg({ type: 'error', text: 'Le due nuove password non coincidono' })
     setSavingPw(true)
     setMsg(null)

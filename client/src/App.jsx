@@ -7,6 +7,8 @@ import NewTripPage from './pages/NewTripPage'
 import TripPage from './pages/TripPage'
 import SharePage from './pages/SharePage'
 import SettingsPage from './pages/SettingsPage'
+import ForgotPasswordPage from './pages/ForgotPasswordPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
 import { useEffect, useState, lazy, Suspense } from 'react'
 
 // L'editor note (TipTap) è pesante: caricato solo quando serve
@@ -83,6 +85,8 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
+          <Route path="/password-dimenticata" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
+          <Route path="/reset-password/:token" element={<PublicRoute><ResetPasswordPage /></PublicRoute>} />
           <Route path="/" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
           <Route path="/trips/new" element={<PrivateRoute><NewTripPage /></PrivateRoute>} />
           <Route path="/trips/:id" element={<PrivateRoute><TripPage /></PrivateRoute>} />

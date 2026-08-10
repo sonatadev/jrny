@@ -73,6 +73,10 @@ export default function LoginPage() {
           </form>
         </div>
 
+        <div className="auth-footer" style={{ marginBottom: '.35rem' }}>
+          <Link to="/password-dimenticata">Password dimenticata?</Link>
+        </div>
+
         <div className="auth-footer">
           Non hai un account? <Link to={withRedirect('/register', location.search)}>Registrati gratuitamente</Link>
         </div>
