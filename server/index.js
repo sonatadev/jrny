@@ -47,6 +47,18 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '1mb' }));
 
+// Header di sicurezza per le risposte API. I documenti dell'app li ricevono da
+// nginx (client/security-headers.conf); qui coprono le risposte JSON, che non
+// devono essere né incorniciate, né indicizzate, né conservate in cache.
+app.use('/api', (req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+  next();
+});
+
 // Header di sicurezza per i file statici: impedisce il MIME-sniffing (XSS via upload)
 function uploadStatic(dir, { forceDownload = false } = {}) {
   return express.static(dir, {
