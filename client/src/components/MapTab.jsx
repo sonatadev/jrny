@@ -5,11 +5,18 @@ import 'leaflet/dist/leaflet.css'
 import Icon from './Icon'
 import { updateCity } from '../js/api'
 
+// I marker arrivavano da unpkg.com: una richiesta a un CDN di terzi a ogni
+// apertura della mappa (IP dell'utente esposto, e la mappa si rompe se il CDN
+// è irraggiungibile). Ora sono importati dal pacchetto e serviti da noi.
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
+import markerIcon from 'leaflet/dist/images/marker-icon.png'
+import markerShadow from 'leaflet/dist/images/marker-shadow.png'
+
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
 })
 
 function coloredIcon(color) {
