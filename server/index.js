@@ -8,10 +8,32 @@ const { initDb } = require('./db/init');
 const authMiddleware = require('./middleware/auth');
 const { randomFileToken } = require('./utils/security');
 
+// Fail-fast sui segreti: il repository è pubblico, quindi ogni valore preso da
+// .env.example è noto a chiunque. Un JWT_SECRET di default permette di firmare
+// token per qualsiasi utente → nessun avvio con segreti deboli.
+const WEAK_SECRETS = new Set([
+  'cambia_questo_secret_con_stringa_random_lunga',
+  'changeme', 'secret', 'password', 'jwt_secret',
+]);
+const JWT_SECRET = process.env.JWT_SECRET || '';
+if (JWT_SECRET.length < 32 || WEAK_SECRETS.has(JWT_SECRET.toLowerCase())) {
+  console.error(
+    'FATALE: JWT_SECRET mancante, di default o più corto di 32 caratteri.\n' +
+    'Generane uno nuovo con: openssl rand -hex 32'
+  );
+  process.exit(1);
+}
+if (/:(changeme|password|postgres)@/i.test(process.env.DATABASE_URL || '')) {
+  console.error('FATALE: DATABASE_URL usa una password di default. Cambiala prima di avviare.');
+  process.exit(1);
+}
+
 const app = express();
 
-// Dietro al reverse proxy (nginx) — necessario perché req.ip sia l'IP reale del client
-app.set('trust proxy', 1);
+// Catena di proxy: NPM → nginx del client → server. Con trust proxy=1 Express
+// risolveva req.ip all'IP di NPM (uguale per tutti), rendendo globale — invece
+// che per-IP — ogni rate limit. Due hop = due proxy da scartare.
+app.set('trust proxy', 2);
 
 // CORS ristretto all'origine dell'app (configurabile via env, anche lista separata da virgola)
 const allowedOrigins = (process.env.CORS_ORIGIN || process.env.APP_URL || 'http://localhost:8090')
