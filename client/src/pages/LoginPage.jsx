@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../js/auth'
 import { login } from '../js/api'
+import { safeRedirect, withRedirect } from '../js/redirect'
 import ParticlesBg from '../components/ParticlesBg'
 import Icon from '../components/Icon'
 
@@ -11,6 +12,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const { login: authLogin } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -19,7 +21,7 @@ export default function LoginPage() {
     try {
       const res = await login(form)
       authLogin(res.data.token, res.data.user)
-      navigate('/')
+      navigate(safeRedirect(location.search))
     } catch (err) {
       setError(err.response?.data?.error || 'Credenziali non valide')
     } finally {
@@ -72,7 +74,7 @@ export default function LoginPage() {
         </div>
 
         <div className="auth-footer">
-          Non hai un account? <Link to="/register">Registrati gratuitamente</Link>
+          Non hai un account? <Link to={withRedirect('/register', location.search)}>Registrati gratuitamente</Link>
         </div>
       </div>
     </div>

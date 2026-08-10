@@ -18,7 +18,7 @@ function getTransporter() {
   return _transporter
 }
 
-async function sendInviteEmail({ to, inviterName, tripTitle, appUrl, isNewUser }) {
+async function sendInviteEmail({ to, inviterName, tripTitle, appUrl, isNewUser, claimUrl }) {
   const t = getTransporter()
   if (!t) {
     console.warn('[email] SMTP non configurato — invito non inviato a', to)
@@ -30,10 +30,12 @@ async function sendInviteEmail({ to, inviterName, tripTitle, appUrl, isNewUser }
     ? `${inviterName} ti ha invitato su jrny`
     : `${inviterName} ti ha aggiunto al viaggio "${tripTitle}"`
 
-  const actionUrl = isNewUser ? `${appUrl}/register` : appUrl
-  const actionLabel = isNewUser ? 'Crea il tuo account' : 'Apri il viaggio'
+  // Il link di riscatto contiene il token dell'invito: riceverlo è ciò che
+  // prova l'accesso alla casella. Senza, l'invito non è utilizzabile.
+  const actionUrl = claimUrl || (isNewUser ? `${appUrl}/register` : appUrl)
+  const actionLabel = isNewUser ? 'Accetta l\'invito' : 'Apri il viaggio'
   const bodyLine = isNewUser
-    ? `Registrati su jrny per unirti al gruppo e iniziare a pianificare insieme.`
+    ? `Apri il link qui sotto per accettare l'invito: potrai creare il tuo account e unirti subito al gruppo.`
     : `Accedi a jrny per vedere l'itinerario, la wishlist e il budget del viaggio.`
 
   // Escape di tutti i valori dinamici interpolati nell'HTML (anti-XSS via nome/titolo)
@@ -106,7 +108,7 @@ async function sendInviteEmail({ to, inviterName, tripTitle, appUrl, isNewUser }
 </html>`
 
   const text = isNewUser
-    ? `${inviterName} ti ha invitato al viaggio "${tripTitle}" su jrny.\n\nRegistrati per partecipare: ${appUrl}/register`
+    ? `${inviterName} ti ha invitato al viaggio "${tripTitle}" su jrny.\n\nAccetta l'invito: ${actionUrl}\n\nSe non ti aspettavi questo invito, ignora questa email: senza aprire il link non viene creato nulla a tuo nome.`
     : `${inviterName} ti ha aggiunto al viaggio "${tripTitle}" su jrny.\n\nAccedi: ${appUrl}`
 
   await t.sendMail({ from, to, subject, html, text })

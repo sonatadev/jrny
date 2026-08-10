@@ -37,17 +37,9 @@ router.post('/register', authLimiter, async (req, res) => {
     );
     const user = result.rows[0];
 
-    // Auto-accetta inviti pendenti per questa email
-    const invites = await pool.query(
-      'SELECT trip_id, role FROM trip_invitations WHERE invited_email=$1', [email]
-    );
-    for (const inv of invites.rows) {
-      await pool.query(
-        'INSERT INTO trip_participants (trip_id, user_id, role) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
-        [inv.trip_id, user.id, inv.role]
-      );
-    }
-    await pool.query('DELETE FROM trip_invitations WHERE invited_email=$1', [email]);
+    // Nessuna accettazione automatica degli inviti: registrarsi con un
+    // indirizzo invitato non prova di possederlo. L'invito si riscatta solo
+    // aprendo il link ricevuto via email (POST /api/trips/invitations/claim/:token).
 
     const token = signToken(user);
     // Cookie per la lettura di foto e immagini delle note (<img src> non può

@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../js/auth'
+import { safeRedirect, withRedirect } from '../js/redirect'
 import { register } from '../js/api'
 import ParticlesBg from '../components/ParticlesBg'
 import Icon from '../components/Icon'
@@ -11,6 +12,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false)
   const { login: authLogin } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -21,7 +23,7 @@ export default function RegisterPage() {
     try {
       const res = await register({ name: form.name, email: form.email, password: form.password })
       authLogin(res.data.token, res.data.user)
-      navigate('/')
+      navigate(safeRedirect(location.search))
     } catch (err) {
       setError(err.response?.data?.error || 'Errore durante la registrazione')
     } finally {
@@ -87,7 +89,7 @@ export default function RegisterPage() {
         </div>
 
         <div className="auth-footer">
-          Hai già un account? <Link to="/login">Accedi</Link>
+          Hai già un account? <Link to={withRedirect('/login', location.search)}>Accedi</Link>
         </div>
       </div>
     </div>

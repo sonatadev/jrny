@@ -91,6 +91,8 @@ export const getTripVersion = (tripId) => api.get(`/trips/${tripId}/version`)
 export const generateInviteLink = (tripId) => api.post(`/trips/${tripId}/invite-link`)
 export const revokeInviteLink = (tripId) => api.delete(`/trips/${tripId}/invite-link`)
 export const joinViaLink = (token) => api.post(`/trips/join/${token}`)
+// Riscatta l'invito ricevuto via email (il token è la prova di possesso della casella)
+export const claimInvitation = (token) => api.post(`/trips/invitations/claim/${token}`)
 
 // Public share
 export const toggleShareLink = (tripId) => api.post(`/trips/${tripId}/share`)

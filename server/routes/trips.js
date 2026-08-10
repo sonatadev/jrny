@@ -9,6 +9,7 @@ const joinLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: 'Tro
 // Durata dei link generati
 const INVITE_LINK_DAYS = 7;
 const SHARE_LINK_DAYS = 90;
+const INVITATION_DAYS = 14;
 
 // Join via invite link (must be before /:id routes)
 // Rate limit per IP: il token è di 24 byte, ma un endpoint di ricerca token
@@ -29,6 +30,35 @@ router.post('/join/:token', joinLimiter, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Errore durante il join' });
+  }
+});
+
+// POST /api/trips/invitations/claim/:token — riscatta un invito ricevuto via email.
+// Il possesso del token È la prova di accesso alla casella: non serve che
+// l'email dell'account corrisponda a quella invitata (ci si può registrare
+// con un altro indirizzo e riscattare comunque il proprio invito).
+router.post('/invitations/claim/:token', joinLimiter, async (req, res) => {
+  try {
+    const inv = await pool.query(
+      `SELECT ti.id, ti.trip_id, ti.role, t.title
+         FROM trip_invitations ti JOIN trips t ON t.id = ti.trip_id
+        WHERE ti.token = $1 AND (ti.expires_at IS NULL OR ti.expires_at > NOW())`,
+      [req.params.token]
+    );
+    if (!inv.rows.length) return res.status(404).json({ error: 'Invito non valido o scaduto' });
+    const { id, trip_id, role, title } = inv.rows[0];
+
+    await pool.query(
+      'INSERT INTO trip_participants (trip_id, user_id, role) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
+      [trip_id, req.user.id, role || 'editor']
+    );
+    // Consumato: il token non è riutilizzabile
+    await pool.query('DELETE FROM trip_invitations WHERE id=$1', [id]);
+
+    res.json({ tripId: trip_id, title });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Errore durante l\'accettazione dell\'invito' });
   }
 });
 
@@ -86,6 +116,7 @@ router.post('/', async (req, res) => {
     }
 
     // Gestisci inviti email
+    const pendingEmails = [];
     if (invited_emails && Array.isArray(invited_emails)) {
       for (const email of invited_emails) {
         if (!isValidEmail(email)) continue;
@@ -96,15 +127,31 @@ router.post('/', async (req, res) => {
             [tripId, userRes.rows[0].id, 'editor']
           );
         } else {
+          // Token recapitato solo via email: è l'unica prova di possesso
+          // della casella, ora che la registrazione non accetta più da sola.
+          const inviteToken = crypto.randomBytes(24).toString('hex');
           await client.query(
-            'INSERT INTO trip_invitations (trip_id, invited_email, role) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
-            [tripId, email, 'editor']
+            `INSERT INTO trip_invitations (trip_id, invited_email, role, token, expires_at)
+             VALUES ($1,$2,$3,$4, NOW() + ($5 || ' days')::interval)
+             ON CONFLICT (trip_id, invited_email)
+             DO UPDATE SET token=$4, expires_at=NOW() + ($5 || ' days')::interval`,
+            [tripId, email, 'editor', inviteToken, String(INVITATION_DAYS)]
           );
+          pendingEmails.push({ email, inviteToken });
         }
       }
     }
 
     await client.query('COMMIT');
+
+    // Fuori dalla transazione: un errore SMTP non deve annullare il viaggio
+    const appUrl = process.env.APP_URL || 'http://localhost:8090';
+    for (const { email, inviteToken } of pendingEmails) {
+      sendInviteEmail({
+        to: email, inviterName: req.user.name, tripTitle: title, appUrl,
+        claimUrl: `${appUrl}/invito/${inviteToken}`, isNewUser: true,
+      }).catch(err => console.error('[email] errore invio:', err.message));
+    }
     res.status(201).json(trip.rows[0]);
   } catch (err) {
     await client.query('ROLLBACK');
@@ -226,12 +273,25 @@ router.post('/:id/invite', async (req, res) => {
       sendInviteEmail({ to: email, inviterName: req.user.name, tripTitle, appUrl, isNewUser: false })
         .catch(err => console.error('[email] errore invio:', err.message));
     } else {
+      // Ripulisce gli inviti scaduti di questo viaggio: non devono restare
+      // indirizzi di terzi in archivio a tempo indeterminato.
       await pool.query(
-        'INSERT INTO trip_invitations (trip_id, invited_email, role) VALUES ($1,$2,$3) ON CONFLICT (trip_id, invited_email) DO UPDATE SET role=$3',
-        [req.params.id, email, role || 'editor']
+        'DELETE FROM trip_invitations WHERE trip_id=$1 AND expires_at IS NOT NULL AND expires_at < NOW()',
+        [req.params.id]
       );
-      sendInviteEmail({ to: email, inviterName: req.user.name, tripTitle, appUrl, isNewUser: true })
-        .catch(err => console.error('[email] errore invio:', err.message));
+
+      const inviteToken = crypto.randomBytes(24).toString('hex');
+      await pool.query(
+        `INSERT INTO trip_invitations (trip_id, invited_email, role, token, expires_at)
+         VALUES ($1,$2,$3,$4, NOW() + ($5 || ' days')::interval)
+         ON CONFLICT (trip_id, invited_email)
+         DO UPDATE SET role=$3, token=$4, expires_at=NOW() + ($5 || ' days')::interval`,
+        [req.params.id, email, role || 'editor', inviteToken, String(INVITATION_DAYS)]
+      );
+      sendInviteEmail({
+        to: email, inviterName: req.user.name, tripTitle, appUrl,
+        claimUrl: `${appUrl}/invito/${inviteToken}`, isNewUser: true,
+      }).catch(err => console.error('[email] errore invio:', err.message));
     }
 
     res.json({ message: 'Invito inviato' });

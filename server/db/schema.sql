@@ -211,6 +211,15 @@ CREATE TABLE IF NOT EXISTS note_images (
 -- dalla bacheca immagini, che resta la raccolta curata dall'utente.
 ALTER TABLE note_images ADD COLUMN IF NOT EXISTS inline BOOLEAN NOT NULL DEFAULT FALSE;
 
+-- Sicurezza: gli inviti venivano accettati automaticamente alla registrazione
+-- di un utente con quell'indirizzo. Bastava conoscere (o indovinare) l'email
+-- invitata per entrare nel viaggio, senza mai provare di possedere la casella.
+-- Ora ogni invito ha un token, recapitato solo via email, e una scadenza.
+ALTER TABLE trip_invitations ADD COLUMN IF NOT EXISTS token VARCHAR(64);
+ALTER TABLE trip_invitations ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP;
+CREATE UNIQUE INDEX IF NOT EXISTS trip_invitations_token_idx
+  ON trip_invitations(token) WHERE token IS NOT NULL;
+
 -- Sicurezza: i link di invito e di condivisione pubblica erano perpetui.
 -- Chi li aveva ricevuti una volta manteneva l'accesso per sempre, anche dopo
 -- essere stato rimosso dal viaggio.
