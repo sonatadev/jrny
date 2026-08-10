@@ -84,25 +84,27 @@ function escapeHtml(value) {
 
 // Rate limiter in-memory, senza dipendenze esterne.
 // Limita il numero di richieste per IP in una finestra temporale.
-function rateLimit({ windowMs = 15 * 60 * 1000, max = 10, message = 'Troppe richieste, riprova più tardi' } = {}) {
-  const hits = new Map(); // ip -> { count, resetAt }
+// `key` permette di limitare per utente invece che per IP (utile dietro NAT,
+// e per gli upload, dove il costo è per account e non per indirizzo).
+function rateLimit({ windowMs = 15 * 60 * 1000, max = 10, message = 'Troppe richieste, riprova più tardi', key = null } = {}) {
+  const hits = new Map(); // chiave -> { count, resetAt }
 
   // Pulizia periodica delle entry scadute per evitare leak di memoria
   const cleanup = setInterval(() => {
     const now = Date.now();
-    for (const [ip, rec] of hits) {
-      if (rec.resetAt <= now) hits.delete(ip);
+    for (const [id, rec] of hits) {
+      if (rec.resetAt <= now) hits.delete(id);
     }
   }, windowMs);
   if (cleanup.unref) cleanup.unref();
 
   return (req, res, next) => {
-    const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+    const id = key ? key(req) : (req.ip || req.connection?.remoteAddress || 'unknown');
     const now = Date.now();
-    let rec = hits.get(ip);
+    let rec = hits.get(id);
     if (!rec || rec.resetAt <= now) {
       rec = { count: 0, resetAt: now + windowMs };
-      hits.set(ip, rec);
+      hits.set(id, rec);
     }
     rec.count++;
     if (rec.count > max) {

@@ -8,6 +8,7 @@ const { initDb } = require('./db/init');
 const authMiddleware = require('./middleware/auth');
 const { mediaAuth } = require('./middleware/mediaAuth');
 const { imageFileFilter, imageFilename } = require('./utils/security');
+const { uploadLimiter } = require('./utils/storage');
 
 // Fail-fast sui segreti: il repository è pubblico, quindi ogni valore preso da
 // .env.example è noto a chiunque. Un JWT_SECRET di default permette di firmare
@@ -113,7 +114,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/share', require('./routes/public'));
 
 // Upload immagine (protetto)
-app.post('/api/upload', authMiddleware, upload.single('image'), (req, res) => {
+app.post('/api/upload', authMiddleware, uploadLimiter, upload.single('image'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Nessun file caricato' });
   res.json({ url: `/uploads/${req.file.filename}` });
 });

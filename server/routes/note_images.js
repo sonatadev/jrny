@@ -1,6 +1,7 @@
 const router = require('express').Router({ mergeParams: true });
 const { pool } = require('../db/init');
 const { imageFileFilter, imageFilename } = require('../utils/security');
+const { uploadLimiter, enforceQuota } = require('../utils/storage');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -53,22 +54,23 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/trips/:id/note-images
-router.post('/', upload.single('image'), async (req, res) => {
+router.post('/', uploadLimiter, upload.single('image'), async (req, res) => {
   const role = await checkAccess(req.params.id, req.user.id, 'editor');
   if (!role) {
     if (req.file) try { fs.unlinkSync(req.file.path); } catch {}
     return res.status(403).json({ error: 'Permesso insufficiente' });
   }
   if (!req.file) return res.status(400).json({ error: 'Nessuna immagine' });
+  if (!await enforceQuota(req.params.id, req.file, res)) return;
 
   const { label } = req.body;
   // inline=1 → immagine incollata dentro il testo di una nota
   const inline = req.query.inline === '1' || req.body.inline === '1' || req.body.inline === true;
   try {
     const result = await pool.query(
-      `INSERT INTO note_images (trip_id, url, label, uploaded_by, inline)
-       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-      [req.params.id, `/uploads/note-images/${req.file.filename}`, label || null, req.user.id, inline]
+      `INSERT INTO note_images (trip_id, url, label, uploaded_by, inline, file_size)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [req.params.id, `/uploads/note-images/${req.file.filename}`, label || null, req.user.id, inline, req.file.size]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {

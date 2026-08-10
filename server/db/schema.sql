@@ -211,6 +211,12 @@ CREATE TABLE IF NOT EXISTS note_images (
 -- dalla bacheca immagini, che resta la raccolta curata dall'utente.
 ALTER TABLE note_images ADD COLUMN IF NOT EXISTS inline BOOLEAN NOT NULL DEFAULT FALSE;
 
+-- Quota per viaggio: serve la dimensione di ogni file caricato.
+-- Le righe già esistenti restano a NULL e contano zero: la quota parte da qui.
+ALTER TABLE note_images ADD COLUMN IF NOT EXISTS file_size INTEGER;
+ALTER TABLE trip_photos ADD COLUMN IF NOT EXISTS file_size INTEGER;
+ALTER TABLE transports  ADD COLUMN IF NOT EXISTS ticket_size INTEGER;
+
 -- Feature: trasporti / spostamenti tra luoghi
 CREATE TABLE IF NOT EXISTS transports (
   id SERIAL PRIMARY KEY,

@@ -1,6 +1,7 @@
 const router = require('express').Router({ mergeParams: true });
 const { pool } = require('../db/init');
 const { randomFileToken } = require('../utils/security');
+const { uploadLimiter, enforceQuota } = require('../utils/storage');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -65,10 +66,14 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.post('/', upload.single('file'), async (req, res) => {
+router.post('/', uploadLimiter, upload.single('file'), async (req, res) => {
   const role = await checkAccess(req.params.id, req.user.id, 'editor');
-  if (!role) return res.status(403).json({ error: 'Permesso insufficiente' });
+  if (!role) {
+    if (req.file) try { fs.unlinkSync(req.file.path); } catch {}
+    return res.status(403).json({ error: 'Permesso insufficiente' });
+  }
   if (!req.file) return res.status(400).json({ error: 'Nessun file' });
+  if (!await enforceQuota(req.params.id, req.file, res)) return;
   try {
     const result = await pool.query(
       `INSERT INTO trip_attachments (trip_id, name, file_path, file_size, mime_type, uploaded_by)

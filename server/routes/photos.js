@@ -1,6 +1,7 @@
 const router = require('express').Router({ mergeParams: true });
 const { pool } = require('../db/init');
 const { imageFileFilter, imageFilename } = require('../utils/security');
+const { uploadLimiter, enforceQuota } = require('../utils/storage');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -52,13 +53,14 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.post('/', upload.single('image'), async (req, res) => {
+router.post('/', uploadLimiter, upload.single('image'), async (req, res) => {
   const role = await checkAccess(req.params.id, req.user.id, 'editor');
   if (!role) {
     if (req.file) try { fs.unlinkSync(req.file.path); } catch {}
     return res.status(403).json({ error: 'Permesso insufficiente' });
   }
   if (!req.file) return res.status(400).json({ error: 'Nessuna immagine' });
+  if (!await enforceQuota(req.params.id, req.file, res)) return;
 
   const { day_id, activity_id, caption } = req.body;
   if (!day_id) return res.status(400).json({ error: 'day_id obbligatorio' });
@@ -71,8 +73,8 @@ router.post('/', upload.single('image'), async (req, res) => {
     if (!dayCheck.rows.length) return res.status(404).json({ error: 'Giorno non trovato' });
 
     const result = await pool.query(
-      `INSERT INTO trip_photos (trip_id, day_id, activity_id, url, caption, uploaded_by)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      `INSERT INTO trip_photos (trip_id, day_id, activity_id, url, caption, uploaded_by, file_size)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
       [
         req.params.id,
         parseInt(day_id),
@@ -80,6 +82,7 @@ router.post('/', upload.single('image'), async (req, res) => {
         `/uploads/photos/${req.file.filename}`,
         caption || null,
         req.user.id,
+        req.file.size,
       ]
     );
     res.status(201).json(result.rows[0]);

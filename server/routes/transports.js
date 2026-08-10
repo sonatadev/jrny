@@ -1,6 +1,7 @@
 const router = require('express').Router({ mergeParams: true });
 const { pool } = require('../db/init');
 const { isSafeUrl, parseNumber, randomFileToken } = require('../utils/security');
+const { uploadLimiter, enforceQuota } = require('../utils/storage');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -233,13 +234,14 @@ router.delete('/:transportId', async (req, res) => {
 });
 
 // POST /api/trips/:id/transports/:transportId/ticket  (carica biglietto PDF/immagine)
-router.post('/:transportId/ticket', ticketUpload.single('file'), async (req, res) => {
+router.post('/:transportId/ticket', uploadLimiter, ticketUpload.single('file'), async (req, res) => {
   const role = await checkAccess(req.params.id, req.user.id, 'editor');
   if (!role) {
     if (req.file) unlinkTicket(`/uploads/attachments/${req.file.filename}`);
     return res.status(403).json({ error: 'Permesso insufficiente' });
   }
   if (!req.file) return res.status(400).json({ error: 'Nessun file' });
+  if (!await enforceQuota(req.params.id, req.file, res)) return;
   try {
     const existing = await pool.query(
       'SELECT ticket_path FROM transports WHERE id=$1 AND trip_id=$2',
@@ -253,8 +255,8 @@ router.post('/:transportId/ticket', ticketUpload.single('file'), async (req, res
     unlinkTicket(existing.rows[0].ticket_path);
 
     const result = await pool.query(
-      'UPDATE transports SET ticket_path=$1, ticket_name=$2 WHERE id=$3 AND trip_id=$4 RETURNING *',
-      [`/uploads/attachments/${req.file.filename}`, req.file.originalname, req.params.transportId, req.params.id]
+      'UPDATE transports SET ticket_path=$1, ticket_name=$2, ticket_size=$3 WHERE id=$4 AND trip_id=$5 RETURNING *',
+      [`/uploads/attachments/${req.file.filename}`, req.file.originalname, req.file.size, req.params.transportId, req.params.id]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -275,7 +277,7 @@ router.delete('/:transportId/ticket', async (req, res) => {
     if (!existing.rows.length) return res.status(404).json({ error: 'Trasporto non trovato' });
     unlinkTicket(existing.rows[0].ticket_path);
     const result = await pool.query(
-      'UPDATE transports SET ticket_path=NULL, ticket_name=NULL WHERE id=$1 AND trip_id=$2 RETURNING *',
+      'UPDATE transports SET ticket_path=NULL, ticket_name=NULL, ticket_size=NULL WHERE id=$1 AND trip_id=$2 RETURNING *',
       [req.params.transportId, req.params.id]
     );
     res.json(result.rows[0]);
