@@ -421,10 +421,16 @@ function PlaceDetailModal({ place, tripId, myRole, days, cities, onRefresh, onCl
           )}
 
           {place.maps_link && (
-            <a href={place.maps_link} target="_blank" rel="noopener noreferrer" className="btn btn-secondary w-full"
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.45rem' }}>
-              <Icon name="link" size={15} color="var(--primary)" /> Apri in Google Maps
-            </a>
+            <>
+              <a href={place.maps_link} target="_blank" rel="noopener noreferrer" className="btn btn-secondary w-full"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '.45rem' }}>
+                <Icon name="link" size={15} color="var(--primary)" /> Apri in Google Maps
+              </a>
+              {/* Attribuzione richiesta per nome, indirizzo e foto che arrivano da Google */}
+              <div style={{ marginTop: '.5rem', fontSize: '.72rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                Dati del luogo e foto: © Google Maps
+              </div>
+            </>
           )}
         </div>
 

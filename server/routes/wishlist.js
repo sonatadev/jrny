@@ -101,8 +101,8 @@ router.post('/import', async (req, res) => {
     return res.status(422).json({ error: msg });
   }
 
-  console.log('[Maps Import] Extracted:', JSON.stringify(placeData));
-
+  // Niente log del contenuto importato: finiva nei log del container, senza
+  // rotazione né scadenza, il nome e l'indirizzo di ogni posto salvato.
   try {
     // Ensure city exists in trip_cities if we got one
     if (placeData.city) {
@@ -117,7 +117,6 @@ router.post('/import', async (req, res) => {
           'INSERT INTO trip_cities (trip_id, name, color, sort_order) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING',
           [tripId, placeData.city, '#c26b4a', sort_order]
         );
-        console.log('[Maps Import] Created city:', placeData.city);
       }
     }
 
