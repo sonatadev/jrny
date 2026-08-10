@@ -6,6 +6,7 @@ const fs = require('fs');
 const multer = require('multer');
 const { initDb } = require('./db/init');
 const authMiddleware = require('./middleware/auth');
+const { mediaAuth } = require('./middleware/mediaAuth');
 const { imageFileFilter, imageFilename } = require('./utils/security');
 
 // Fail-fast sui segreti: il repository è pubblico, quindi ogni valore preso da
@@ -78,12 +79,22 @@ function uploadStatic(dir, { forceDownload = false } = {}) {
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
+// ── Accesso ai file caricati ────────────────────────────────────────────────
+// L'ordine dei mount conta: il mount generico /uploads servirebbe anche le
+// sottocartelle, quindi ogni percorso protetto va dichiarato PRIMA di esso.
+
 // Allegati e biglietti possono contenere dati personali: NON sono pubblici.
 // Vengono serviti solo dall'endpoint autenticato GET /api/files/attachment/:filename,
-// che verifica login + appartenenza al viaggio. Qui blocchiamo l'accesso diretto
-// (il mount statico generico /uploads servirebbe altrimenti anche questa sottocartella).
+// che verifica login + appartenenza al viaggio. Qui blocchiamo l'accesso diretto.
 app.use('/uploads/attachments', (req, res) => res.status(404).end());
 
+// Foto del viaggio e immagini delle note: leggibili solo dai partecipanti,
+// verificati file per file tramite il cookie di sessione (vedi mediaAuth).
+app.use('/uploads/photos', mediaAuth('trip_photos'), uploadStatic(path.join(uploadsDir, 'photos')));
+app.use('/uploads/note-images', mediaAuth('note_images'), uploadStatic(path.join(uploadsDir, 'note-images')));
+
+// Restano pubbliche solo le copertine dei viaggi (`cover-*`), che compaiono
+// nelle pagine di condivisione pubblica e non hanno quindi un lettore autenticato.
 app.use('/uploads', uploadStatic(uploadsDir));
 
 // Multer storage
@@ -119,11 +130,9 @@ app.use('/api/trips/:id/packing', authMiddleware, require('./routes/packing'));
 app.use('/api/trips/:id/cities', authMiddleware, require('./routes/cities'));
 app.use('/api/trips/:id/attachments', authMiddleware, require('./routes/attachments'));
 app.use('/api/trips/:id/photos', authMiddleware, require('./routes/photos'));
-app.use('/uploads/photos', uploadStatic(path.join(__dirname, 'uploads/photos')));
 app.use('/api/trips/:id/notes', authMiddleware, require('./routes/notes'));
 app.use('/api/trips/:id/checklist', authMiddleware, require('./routes/checklist'));
 app.use('/api/trips/:id/note-images', authMiddleware, require('./routes/note_images'));
-app.use('/uploads/note-images', uploadStatic(path.join(__dirname, 'uploads/note-images')));
 app.use('/api/trips/:id/transports', authMiddleware, require('./routes/transports'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));

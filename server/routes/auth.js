@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { pool } = require('../db/init');
 const { isValidEmail, rateLimit } = require('../utils/security');
+const { setMediaCookie, clearMediaCookie } = require('../middleware/mediaAuth');
 
 // Limita i tentativi di autenticazione per mitigare brute-force e abusi
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
@@ -49,6 +50,9 @@ router.post('/register', authLimiter, async (req, res) => {
     await pool.query('DELETE FROM trip_invitations WHERE invited_email=$1', [email]);
 
     const token = signToken(user);
+    // Cookie per la lettura di foto e immagini delle note (<img src> non può
+    // portare un header Authorization): vedi middleware/mediaAuth.js
+    setMediaCookie(req, res, token);
     // token_version non fa parte del profilo pubblico restituito al client
     delete user.token_version;
     res.json({ token, user });
@@ -72,11 +76,20 @@ router.post('/login', authLimiter, async (req, res) => {
     if (!valid) return res.status(401).json({ error: 'Credenziali non valide' });
 
     const token = signToken(user);
+    setMediaCookie(req, res, token);
     res.json({ token, user: { id: user.id, name: user.name, email: user.email, avatar_url: user.avatar_url, theme: user.theme, mode: user.mode } });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Errore interno del server' });
   }
+});
+
+// POST /api/auth/logout — invalida il cookie dei media.
+// Il JWT resta valido fino alla scadenza (è stateless): serve solo a non
+// lasciare sul dispositivo un cookie che dà accesso alle immagini.
+router.post('/logout', (req, res) => {
+  clearMediaCookie(req, res);
+  res.json({ message: 'Sessione chiusa' });
 });
 
 module.exports = router;

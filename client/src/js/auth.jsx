@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { syncFromAccount } from './theme'
+import { logoutSession } from './api'
 
 const AuthContext = createContext(null)
 
@@ -29,6 +30,9 @@ export function AuthProvider({ children }) {
   }
 
   function logout() {
+    // Best-effort: cancella lato server il cookie di accesso ai media.
+    // Se la chiamata fallisce si esce comunque.
+    logoutSession().catch(() => {})
     localStorage.removeItem('tp_token')
     localStorage.removeItem('tp_user')
     setToken(null)

@@ -23,6 +23,8 @@ api.interceptors.response.use(
 // Auth
 export const register = (data) => api.post('/auth/register', data)
 export const login = (data) => api.post('/auth/login', data)
+// Cancella il cookie che dà accesso a foto e immagini delle note
+export const logoutSession = () => api.post('/auth/logout')
 
 // User profile
 export const getMe = () => api.get('/users/me')
@@ -165,6 +167,13 @@ export const uploadNoteImage = (tripId, file, label) => {
   form.append('image', file)
   if (label) form.append('label', label)
   return api.post(`/trips/${tripId}/note-images`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
+}
+// Immagine incollata dentro il testo di una nota: stessa cartella protetta
+// delle altre note-images, ma esclusa dalla bacheca.
+export const uploadInlineNoteImage = (tripId, file) => {
+  const form = new FormData()
+  form.append('image', file)
+  return api.post(`/trips/${tripId}/note-images?inline=1`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
 }
 export const updateNoteImageLabel = (tripId, imageId, label) => api.put(`/trips/${tripId}/note-images/${imageId}`, { label })
 export const deleteNoteImage = (tripId, imageId) => api.delete(`/trips/${tripId}/note-images/${imageId}`)

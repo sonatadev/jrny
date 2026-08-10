@@ -37,10 +37,11 @@ router.get('/', async (req, res) => {
   if (!role) return res.status(403).json({ error: 'Accesso negato' });
   try {
     const result = await pool.query(
+      // Le inline vivono dentro il testo delle note: non vanno nella bacheca
       `SELECT ni.*, u.name AS uploader_name
        FROM note_images ni
        LEFT JOIN users u ON u.id = ni.uploaded_by
-       WHERE ni.trip_id = $1
+       WHERE ni.trip_id = $1 AND ni.inline = FALSE
        ORDER BY ni.sort_order, ni.created_at`,
       [req.params.id]
     );
@@ -61,11 +62,13 @@ router.post('/', upload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Nessuna immagine' });
 
   const { label } = req.body;
+  // inline=1 → immagine incollata dentro il testo di una nota
+  const inline = req.query.inline === '1' || req.body.inline === '1' || req.body.inline === true;
   try {
     const result = await pool.query(
-      `INSERT INTO note_images (trip_id, url, label, uploaded_by)
-       VALUES ($1,$2,$3,$4) RETURNING *`,
-      [req.params.id, `/uploads/note-images/${req.file.filename}`, label || null, req.user.id]
+      `INSERT INTO note_images (trip_id, url, label, uploaded_by, inline)
+       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [req.params.id, `/uploads/note-images/${req.file.filename}`, label || null, req.user.id, inline]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {

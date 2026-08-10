@@ -8,7 +8,7 @@ import { Placeholder } from '@tiptap/extensions'
 import Layout from '../components/Layout'
 import Icon from '../components/Icon'
 import CustomSelect from '../components/CustomSelect'
-import { getNote, getNotes, getTrip, getCities, updateNote, uploadImage } from '../js/api'
+import { getNote, getNotes, getTrip, getCities, updateNote, uploadInlineNoteImage } from '../js/api'
 
 const NOTE_PALETTE = ['#f59e0b', '#c26b4a', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899', '#ef4444', '#6b7280']
 
@@ -81,16 +81,18 @@ export default function NotePage() {
   const contentSet = useRef(false)
   const fileRef = useRef(null)
 
-  // Carica immagine sul server e la inserisce come nodo (solo URL /uploads, niente base64)
+  // Carica immagine sul server e la inserisce come nodo (solo URL /uploads, niente base64).
+  // Passa dalle note-images e non dall'endpoint delle copertine: quelle sono
+  // pubbliche, queste sono leggibili solo dai partecipanti al viaggio.
   const uploadAndInsert = useCallback(async (file) => {
     if (!file || !file.type.startsWith('image/')) return
     setUploading(true)
     try {
-      const { data } = await uploadImage(file)
+      const { data } = await uploadInlineNoteImage(id, file)
       if (data?.url && data.url.startsWith('/uploads/'))
         editorRef.current?.chain().focus().setImage({ src: data.url }).run()
     } catch { /* ignora errori di upload */ } finally { setUploading(false) }
-  }, [])
+  }, [id])
 
   const editor = useEditor({
     extensions: [

@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { pool } = require('../db/init');
 const { isValidEmail, rateLimit } = require('../utils/security');
+const { setMediaCookie } = require('../middleware/mediaAuth');
 
 // Limita i tentativi di verifica della password attuale (bruteforce da sessione valida)
 const passwordLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
@@ -126,6 +127,8 @@ router.put('/me/password', passwordLimiter, async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
+    // Il vecchio cookie porta un token con token_version superata: va sostituito
+    setMediaCookie(req, res, token);
     res.json({ message: 'Password aggiornata', token });
   } catch (err) {
     console.error(err);

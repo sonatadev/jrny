@@ -205,6 +205,12 @@ CREATE TABLE IF NOT EXISTS note_images (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Sicurezza: le immagini incollate dentro il testo di una nota passavano
+-- dall'endpoint delle copertine e finivano in /uploads (pubblico). Ora sono
+-- note_images con inline=true: stessa protezione delle altre, ma escluse
+-- dalla bacheca immagini, che resta la raccolta curata dall'utente.
+ALTER TABLE note_images ADD COLUMN IF NOT EXISTS inline BOOLEAN NOT NULL DEFAULT FALSE;
+
 -- Feature: trasporti / spostamenti tra luoghi
 CREATE TABLE IF NOT EXISTS transports (
   id SERIAL PRIMARY KEY,
