@@ -2,7 +2,9 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm install --legacy-peer-deps
+# npm ci: installa esattamente le versioni del lockfile (build riproducibile e
+# non soggetta a pubblicazioni nuove a monte). --legacy-peer-deps non serve più.
+RUN npm ci
 COPY . .
 RUN npm run build
 
