@@ -10,6 +10,9 @@ async function checkAccess(tripId, userId, minRole = 'viewer') {
   if (!res.rows.length) return null;
   const role = res.rows[0].role;
   if (minRole === 'editor' && role === 'viewer') return null;
+  // Mancava il ramo admin presente in tutti gli altri router: una futura
+  // chiamata con minRole 'admin' sarebbe passata silenziosamente.
+  if (minRole === 'admin' && role !== 'admin') return null;
   return role;
 }
 
@@ -224,6 +227,9 @@ router.delete('/:placeId', async (req, res) => {
 });
 
 // POST /api/trips/:id/wishlist/:placeId/vote  (toggle)
+// Eccezione deliberata: il voto è aperto a tutti i partecipanti, viewer
+// compresi. È il senso della funzione — raccogliere le preferenze del gruppo —
+// e tocca solo la riga di voto dell'utente, non i dati del viaggio.
 router.post('/:placeId/vote', async (req, res) => {
   const role = await checkAccess(req.params.id, req.user.id);
   if (!role) return res.status(403).json({ error: 'Accesso negato' });

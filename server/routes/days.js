@@ -153,8 +153,10 @@ router.patch('/:dayId/activities/reorder', async (req, res) => {
 
 // PATCH /api/trips/:id/days/:dayId/activities/:actId/complete
 router.patch('/:dayId/activities/:actId/complete', async (req, res) => {
-  const role = await checkAccess(req.params.id, req.user.id);
-  if (!role) return res.status(403).json({ error: 'Accesso negato' });
+  // Spuntare un'attività modifica l'itinerario: serve il ruolo editor, come
+  // per ogni altra scrittura. Un viewer è di sola lettura.
+  const role = await checkAccess(req.params.id, req.user.id, 'editor');
+  if (!role) return res.status(403).json({ error: 'Permesso insufficiente' });
   try {
     if (!await dayBelongsToTrip(req.params.dayId, req.params.id))
       return res.status(404).json({ error: 'Giorno non trovato' });
