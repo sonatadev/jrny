@@ -1,9 +1,17 @@
 const router = require('express').Router();
 const { pool } = require('../db/init');
+const { rateLimit } = require('../utils/security');
 
-router.get('/:token', async (req, res) => {
+// Endpoint pubblico e non autenticato: senza limite sarebbe l'unico punto
+// dell'app dove provare token a raffica non costa nulla.
+const shareLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 60, message: 'Troppe richieste, riprova più tardi' });
+
+router.get('/:token', shareLimiter, async (req, res) => {
   try {
-    const tripRes = await pool.query('SELECT * FROM trips WHERE share_token=$1', [req.params.token]);
+    const tripRes = await pool.query(
+      'SELECT * FROM trips WHERE share_token=$1 AND (share_token_expires_at IS NULL OR share_token_expires_at > NOW())',
+      [req.params.token]
+    );
     if (!tripRes.rows.length) return res.status(404).json({ error: 'Link non valido o scaduto' });
     const t = tripRes.rows[0];
 

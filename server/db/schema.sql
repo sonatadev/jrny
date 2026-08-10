@@ -211,6 +211,19 @@ CREATE TABLE IF NOT EXISTS note_images (
 -- dalla bacheca immagini, che resta la raccolta curata dall'utente.
 ALTER TABLE note_images ADD COLUMN IF NOT EXISTS inline BOOLEAN NOT NULL DEFAULT FALSE;
 
+-- Sicurezza: i link di invito e di condivisione pubblica erano perpetui.
+-- Chi li aveva ricevuti una volta manteneva l'accesso per sempre, anche dopo
+-- essere stato rimosso dal viaggio.
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS invite_token_expires_at TIMESTAMP;
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS share_token_expires_at  TIMESTAMP;
+
+-- I token già emessi non hanno scadenza: gliene diamo una, invece di
+-- invalidarli di colpo. Idempotente: tocca solo le righe ancora a NULL.
+UPDATE trips SET invite_token_expires_at = NOW() + INTERVAL '7 days'
+ WHERE invite_token IS NOT NULL AND invite_token_expires_at IS NULL;
+UPDATE trips SET share_token_expires_at = NOW() + INTERVAL '90 days'
+ WHERE share_token IS NOT NULL AND share_token_expires_at IS NULL;
+
 -- Quota per viaggio: serve la dimensione di ogni file caricato.
 -- Le righe già esistenti restano a NULL e contano zero: la quota parte da qui.
 ALTER TABLE note_images ADD COLUMN IF NOT EXISTS file_size INTEGER;

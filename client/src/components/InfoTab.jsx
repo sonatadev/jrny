@@ -172,6 +172,11 @@ function printItinerary(trip, days) {
   w.print()
 }
 
+// Data di scadenza di un link, in forma leggibile
+function fmtExpiry(iso) {
+  try { return format(parseISO(iso), 'd MMMM yyyy', { locale: it }) } catch { return '' }
+}
+
 export default function InfoTab({ trip, myRole, onTripUpdated, days }) {
   const navigate = useNavigate()
   const [editModal, setEditModal] = useState(false)
@@ -192,6 +197,8 @@ export default function InfoTab({ trip, myRole, onTripUpdated, days }) {
 
   // Invite link
   const [inviteLink, setInviteLink] = useState(null)
+  const [inviteExpires, setInviteExpires] = useState(null)
+  const [shareExpires, setShareExpires] = useState(null)
   const [inviteLinkLoading, setInviteLinkLoading] = useState(false)
   const [inviteCopied, setInviteCopied] = useState(false)
 
@@ -283,12 +290,12 @@ export default function InfoTab({ trip, myRole, onTripUpdated, days }) {
 
   async function handleGenerateInviteLink() {
     setInviteLinkLoading(true)
-    try { const r = await generateInviteLink(trip.id); setInviteLink(r.data.link) }
+    try { const r = await generateInviteLink(trip.id); setInviteLink(r.data.link); setInviteExpires(r.data.expires_at) }
     catch { } finally { setInviteLinkLoading(false) }
   }
 
   async function handleRevokeInviteLink() {
-    await revokeInviteLink(trip.id); setInviteLink(null)
+    await revokeInviteLink(trip.id); setInviteLink(null); setInviteExpires(null)
   }
 
   function copyInviteLink() {
@@ -300,6 +307,7 @@ export default function InfoTab({ trip, myRole, onTripUpdated, days }) {
     try {
       const r = await toggleShareLink(trip.id)
       setShareLink(r.data.link)
+      setShareExpires(r.data.expires_at || null)
       onTripUpdated()
     } catch { } finally { setShareLoading(false) }
   }
@@ -506,7 +514,7 @@ export default function InfoTab({ trip, myRole, onTripUpdated, days }) {
                 </button>
               </div>
               <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: '.5rem' }}>
-                Chiunque abbia questo link può unirsi come editor.
+                Chiunque abbia questo link può unirsi come editor.{inviteExpires ? ` Scade il ${fmtExpiry(inviteExpires)}.` : ''}
               </div>
               <button className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)', fontSize: '.78rem' }} onClick={handleRevokeInviteLink}>
                 Revoca link
@@ -534,7 +542,7 @@ export default function InfoTab({ trip, myRole, onTripUpdated, days }) {
                 </button>
               </div>
               <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', marginBottom: '.5rem' }}>
-                Chiunque (anche senza account) può vedere l'itinerario in sola lettura.
+                Chiunque (anche senza account) può vedere l'itinerario in sola lettura.{shareExpires ? ` Il link scade il ${fmtExpiry(shareExpires)}.` : ''}
               </div>
               <button className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)', fontSize: '.78rem' }} onClick={handleToggleShare} disabled={shareLoading}>
                 Disattiva condivisione

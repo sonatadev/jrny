@@ -2,12 +2,23 @@ const router = require('express').Router();
 const { pool } = require('../db/init');
 const crypto = require('crypto');
 const { sendInviteEmail } = require('../utils/email');
-const { isValidRole, isValidEmail } = require('../utils/security');
+const { isValidRole, isValidEmail, rateLimit } = require('../utils/security');
+
+const joinLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: 'Troppi tentativi, riprova più tardi' });
+
+// Durata dei link generati
+const INVITE_LINK_DAYS = 7;
+const SHARE_LINK_DAYS = 90;
 
 // Join via invite link (must be before /:id routes)
-router.post('/join/:token', async (req, res) => {
+// Rate limit per IP: il token è di 24 byte, ma un endpoint di ricerca token
+// senza limiti resta un invito a tentare.
+router.post('/join/:token', joinLimiter, async (req, res) => {
   try {
-    const tripRes = await pool.query('SELECT id, title FROM trips WHERE invite_token=$1', [req.params.token]);
+    const tripRes = await pool.query(
+      'SELECT id, title FROM trips WHERE invite_token=$1 AND (invite_token_expires_at IS NULL OR invite_token_expires_at > NOW())',
+      [req.params.token]
+    );
     if (!tripRes.rows.length) return res.status(404).json({ error: 'Link non valido o scaduto' });
     const { id: tripId, title } = tripRes.rows[0];
     await pool.query(
@@ -359,9 +370,13 @@ router.post('/:id/invite-link', async (req, res) => {
       return res.status(403).json({ error: 'Permesso insufficiente' });
 
     const token = crypto.randomBytes(24).toString('hex');
-    await pool.query('UPDATE trips SET invite_token=$1 WHERE id=$2', [token, req.params.id]);
+    const upd = await pool.query(
+      `UPDATE trips SET invite_token=$1, invite_token_expires_at = NOW() + ($3 || ' days')::interval
+       WHERE id=$2 RETURNING invite_token_expires_at`,
+      [token, req.params.id, String(INVITE_LINK_DAYS)]
+    );
     const appUrl = process.env.APP_URL || 'http://localhost:8090';
-    res.json({ link: `${appUrl}/join/${token}` });
+    res.json({ link: `${appUrl}/join/${token}`, expires_at: upd.rows[0].invite_token_expires_at });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Errore generazione link' });
@@ -378,7 +393,7 @@ router.delete('/:id/invite-link', async (req, res) => {
     if (!perm.rows.length || perm.rows[0].role === 'viewer')
       return res.status(403).json({ error: 'Permesso insufficiente' });
 
-    await pool.query('UPDATE trips SET invite_token=NULL WHERE id=$1', [req.params.id]);
+    await pool.query('UPDATE trips SET invite_token=NULL, invite_token_expires_at=NULL WHERE id=$1', [req.params.id]);
     res.json({ message: 'Link revocato' });
   } catch (err) {
     console.error(err);
@@ -401,12 +416,16 @@ router.post('/:id/share', async (req, res) => {
     const appUrl = process.env.APP_URL || 'http://localhost:8090';
 
     if (existing) {
-      await pool.query('UPDATE trips SET share_token=NULL WHERE id=$1', [req.params.id]);
+      await pool.query('UPDATE trips SET share_token=NULL, share_token_expires_at=NULL WHERE id=$1', [req.params.id]);
       res.json({ token: null, link: null });
     } else {
       const token = crypto.randomBytes(24).toString('hex');
-      await pool.query('UPDATE trips SET share_token=$1 WHERE id=$2', [token, req.params.id]);
-      res.json({ token, link: `${appUrl}/share/${token}` });
+      const upd = await pool.query(
+        `UPDATE trips SET share_token=$1, share_token_expires_at = NOW() + ($3 || ' days')::interval
+         WHERE id=$2 RETURNING share_token_expires_at`,
+        [token, req.params.id, String(SHARE_LINK_DAYS)]
+      );
+      res.json({ token, link: `${appUrl}/share/${token}`, expires_at: upd.rows[0].share_token_expires_at });
     }
   } catch (err) {
     console.error(err);
